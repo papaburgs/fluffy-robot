@@ -119,11 +119,13 @@ func (a *App) renderPage(w io.Writer) {
 	page.Render(io.MultiWriter(w))
 }
 
-
 func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last 24 hours",
 			Subtitle: "Data point every 15 minutes",
@@ -147,8 +149,7 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 		hist := a.Current[p]
 		items := make([]opts.LineData, 0)
 		for i, r := range hist {
-			// I want 4 points per hour
-			if i%(collectPointsPerHour/4) == 0 {
+			if i%10 == 0 {
 				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
 			}
 		}
@@ -161,6 +162,9 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-4 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last 4 hours",
 			Subtitle: "20 Data Points per hour",
@@ -184,8 +188,7 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 		hist := a.Current[p]
 		items := make([]opts.LineData, 0)
 		for i, r := range hist {
-			// I want 4 points per hour
-			if i%(collectPointsPerHour/20) == 0 {
+			if i%2 == 0 {
 				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
 			}
 		}
@@ -199,6 +202,9 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-1 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last hour",
 			Subtitle: "All Data points",
@@ -222,7 +228,6 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 		hist := a.Current[p]
 		items := make([]opts.LineData, 0)
 		for _, r := range hist {
-			// I want 4 points per hour
 			items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
 		}
 		line.AddSeries(p, items)
