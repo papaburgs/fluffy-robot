@@ -14,6 +14,7 @@ import (
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/components"
 	"github.com/go-echarts/go-echarts/v2/opts"
+	"github.com/goforj/godump"
 )
 
 var agents = []string{
@@ -22,7 +23,7 @@ var agents = []string{
 }
 
 type AgentRecord struct {
-	TimeStamp time.Time
+	Timestamp time.Time
 	ShipCount int
 	Credits   int
 }
@@ -46,7 +47,8 @@ var mapLock sync.Mutex
 func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	// Generate the chart.
-	renderPage(w)
+	godump.Dump(a)
+	a.renderPage(w)
 }
 
 func NewApp() *App {
@@ -70,9 +72,9 @@ func main() {
 	slog.SetDefault(l)
 
 	a := NewApp()
-	l.Debug("starting fluffy robot", "version", "0.0.1")
+	l.Info("starting fluffy robot", "version", "0.0.2")
 
-	go
+	go a.collector("https://api.spacetraders.io/v2")
 	// Register the handler function for the root URL path ("/").
 	http.HandleFunc("/", a.RootHandler)
 
@@ -81,17 +83,20 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8845", nil))
 }
 
-func renderPage(w io.Writer) {
-	slog.Info("Starting this", "agents", agents)
+func (a *App) renderPage(w io.Writer) {
+	slog.Debug("Starting render", "agents", agents)
 	page := components.NewPage()
 	page.AddCharts(
-		Last4CreditChart(agents),
-		Last24CreditChart(agents),
+		a.Last1CreditChart(agents),
+		a.Last4CreditChart(agents),
+		a.Last24CreditChart(agents),
 	)
 	page.Render(io.MultiWriter(w))
 }
 
-func Last24CreditChart(agents []string) *charts.Line {
+var collectPointsPerHour int
+
+func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
@@ -112,10 +117,23 @@ func Last24CreditChart(agents []string) *charts.Line {
 			Trigger: "axis",
 		}),
 	)
+	mapLock.Lock()
+	defer mapLock.Unlock()
+	for _, p := range agents {
+		hist := a.Current[p]
+		items := make([]opts.LineData, 0)
+		for i, r := range hist {
+			// I want 4 points per hour
+			if i%(collectPointsPerHour/4) == 0 {
+				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+			}
+		}
+		line.AddSeries(p, items)
+	}
 	return line
 }
 
-func Last4CreditChart(agents []string) *charts.Line {
+func (a *App) Last4CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-4 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
@@ -136,17 +154,72 @@ func Last4CreditChart(agents []string) *charts.Line {
 			Trigger: "axis",
 		}),
 	)
+	mapLock.Lock()
+	defer mapLock.Unlock()
+	for _, p := range agents {
+		hist := a.Current[p]
+		items := make([]opts.LineData, 0)
+		for i, r := range hist {
+			// I want 4 points per hour
+			if i%(collectPointsPerHour/20) == 0 {
+				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+			}
+		}
+		line.AddSeries(p, items)
+	}
+
+	return line
+}
+
+func (a *App) Last1CreditChart(agents []string) *charts.Line {
+	line := charts.NewLine()
+	tfha := int(time.Now().Add(-1 * 60 * time.Minute).UnixMilli())
+	line.SetGlobalOptions(
+		charts.WithTitleOpts(opts.Title{
+			Title:    "Credits - last hour",
+			Subtitle: "All Data points",
+		}),
+		charts.WithYAxisOpts(opts.YAxis{
+			Min: 0,
+			// Max: 200,
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type: "time",
+			Min:  tfha,
+		}),
+		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
+			Show:    opts.Bool(true),
+			Trigger: "axis",
+		}),
+	)
+	mapLock.Lock()
+	defer mapLock.Unlock()
+	for _, p := range agents {
+		hist := a.Current[p]
+		items := make([]opts.LineData, 0)
+		for _, r := range hist {
+			// I want 4 points per hour
+			items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+		}
+		line.AddSeries(p, items)
+	}
 
 	return line
 }
 
 func (a *App) collector(baseURL string) {
-	checkTimerDuration := 5 * time.Minute
+	// do it this way so the render funcs can just look at the points per hour to determine how many points to select
+	collectEvery := 1
+	checkTimerDuration := time.Duration(collectEvery) * time.Minute
+	collectPointsPerHour = 60 / collectEvery
+
 	checkTimer := time.NewTicker(checkTimerDuration)
 	for {
 		select {
 		case <-checkTimer.C:
+			slog.Debug("collecting")
 			a.collect(baseURL)
+
 		}
 	}
 }

@@ -25,9 +25,11 @@ func (a *App) collect(apiURL string) {
 		Timeout: 5 * time.Second, // Set a reasonable timeout
 	}
 
+	a.getServerStatus(apiURL)
 	page := 1
 
 	for { // loop until we have all the pages
+		slog.Debug("getting agents", "page", page)
 		var perPage = 20 // can't see ever changing this
 		fullURL := fmt.Sprintf("%s/agents?limit=%d&page=%d", apiURL, perPage, page)
 
@@ -69,12 +71,13 @@ func (a *App) updateHistory(dl []PublicAgent) {
 	defer mapLock.Unlock()
 	// unpack the data, update each user we find.
 	for _, i := range dl {
+		slog.Debug("unpacking data", "symbol", i.Symbol)
 		agent, ok = a.Current[i.Symbol]
 		if !ok {
 			agent = []AgentRecord{}
 		}
 		rec = AgentRecord{
-			TimeStamp: time.Now(),
+			Timestamp: time.Now(),
 			ShipCount: i.ShipCount,
 			Credits:   int(i.Credits),
 		}
@@ -106,6 +109,7 @@ func (a *App) getServerStatus(apiURL string) {
 		Timeout: 5 * time.Second, // Set a reasonable timeout
 	}
 
+	slog.Error("Looking to update server status")
 	fullURL := fmt.Sprintf("%s/", apiURL)
 
 	resp, err := client.Get(fullURL)
@@ -177,9 +181,11 @@ type ServerStatus struct {
 }
 
 func (a *App) updateServerStatus(data ServerStatus) {
+	slog.Debug("updating server status")
 	mapLock.Lock()
 	defer mapLock.Unlock()
 	if a.Reset != data.ResetDate {
+		slog.Debug("new reset date")
 		a.Reset = data.ResetDate
 		a.LastReset = a.Current
 		a.Current = make(map[string][]AgentRecord)
@@ -191,4 +197,5 @@ func (a *App) updateServerStatus(data ServerStatus) {
 	}
 	a.Agents = data.Stats.Agents
 	a.Ships = data.Stats.Ships
+	slog.Debug("data updated")
 }
