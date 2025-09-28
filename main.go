@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -14,8 +15,9 @@ import (
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/components"
 	"github.com/go-echarts/go-echarts/v2/opts"
-	"github.com/goforj/godump"
 )
+
+var collectPointsPerHour int
 
 var agents = []string{
 	"BURG",
@@ -43,11 +45,11 @@ type App struct {
 }
 
 var mapLock sync.Mutex
+var backupLocation string
 
 func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	// Generate the chart.
-	godump.Dump(a)
 	a.renderPage(w)
 }
 
@@ -66,14 +68,37 @@ func NewApp() *App {
 
 func main() {
 
-	// Create a new text handler that writes to the log file.
 	h := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	if logl, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_LOG_LEVEL"); !ok {
+		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+	} else {
+		switch strings.ToLower(logl) {
+		case "debug", "dbg":
+			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+		case "warn", "wrn":
+			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn})
+		case "error", "err":
+			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError})
+		default:
+			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+		}
+	}
+
+	// Create a new text handler that writes to the log file.
 	l := slog.New(h)
 	slog.SetDefault(l)
 
 	a := NewApp()
-	l.Info("starting fluffy robot", "version", "0.0.2")
+	l.Info("starting fluffy robot", "version", "0.0.3")
 
+	if loc, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_BACKUP_PATH"); ok {
+		backupLocation = loc
+	} else {
+		slog.Debug("no backup location, will use local dir")
+		backupLocation = "."
+	}
+
+	a.Restore()
 	go a.collector("https://api.spacetraders.io/v2")
 	// Register the handler function for the root URL path ("/").
 	http.HandleFunc("/", a.RootHandler)
@@ -94,15 +119,14 @@ func (a *App) renderPage(w io.Writer) {
 	page.Render(io.MultiWriter(w))
 }
 
-var collectPointsPerHour int
 
 func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last 4 hours",
-			Subtitle: "Data point every 5 minutes",
+			Title:    "Credits - last 24 hours",
+			Subtitle: "Data point every 15 minutes",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min: 0,
@@ -138,8 +162,8 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 	tfha := int(time.Now().Add(-4 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
 		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last 24 hours",
-			Subtitle: "Data point every 15 minutes",
+			Title:    "Credits - last 4 hours",
+			Subtitle: "20 Data Points per hour",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min: 0,
@@ -209,7 +233,7 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 
 func (a *App) collector(baseURL string) {
 	// do it this way so the render funcs can just look at the points per hour to determine how many points to select
-	collectEvery := 1
+	collectEvery := 5
 	checkTimerDuration := time.Duration(collectEvery) * time.Minute
 	collectPointsPerHour = 60 / collectEvery
 

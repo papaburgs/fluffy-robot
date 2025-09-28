@@ -14,6 +14,23 @@ type ApiResponse struct {
 	Meta Meta          `json:"meta"`
 }
 
+type PublicAgent struct {
+	// Credits The number of credits the agent has available. Credits can be negative if funds have been overdrawn.
+	Credits int64 `json:"credits"`
+
+	// Headquarters The headquarters of the agent.
+	Headquarters string `json:"headquarters"`
+
+	// ShipCount How many ships are owned by the agent.
+	ShipCount int `json:"shipCount"`
+
+	// StartingFaction The faction the agent started with.
+	StartingFaction string `json:"startingFaction"`
+
+	// Symbol Symbol of the agent.
+	Symbol string `json:"symbol"`
+}
+
 type Meta struct {
 	Limit int `json:"limit"`
 	Page  int `json:"page"`
@@ -59,6 +76,9 @@ func (a *App) collect(apiURL string) {
 			break
 		}
 	}
+	time.Sleep(10 * time.Second)
+	slog.Debug("writing to disk")
+	a.Backup()
 }
 
 func (a *App) updateHistory(dl []PublicAgent) {
@@ -85,23 +105,6 @@ func (a *App) updateHistory(dl []PublicAgent) {
 		a.Current[i.Symbol] = agent
 	}
 	return
-}
-
-type PublicAgent struct {
-	// Credits The number of credits the agent has available. Credits can be negative if funds have been overdrawn.
-	Credits int64 `json:"credits"`
-
-	// Headquarters The headquarters of the agent.
-	Headquarters string `json:"headquarters"`
-
-	// ShipCount How many ships are owned by the agent.
-	ShipCount int `json:"shipCount"`
-
-	// StartingFaction The faction the agent started with.
-	StartingFaction string `json:"startingFaction"`
-
-	// Symbol Symbol of the agent.
-	Symbol string `json:"symbol"`
 }
 
 func (a *App) getServerStatus(apiURL string) {
