@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -102,6 +103,7 @@ func main() {
 	go a.collector("https://api.spacetraders.io/v2")
 	// Register the handler function for the root URL path ("/").
 	http.HandleFunc("/", a.RootHandler)
+	http.HandleFunc("/export", a.ExportHandler)
 
 	// Start the web server and listen on port 8845.
 	fmt.Println("Starting server on http://localhost:8845")
@@ -233,6 +235,19 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 	}
 
 	return line
+}
+
+func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Content-Disposition", `attachment; filename="backup.json"`)
+	mapLock.Lock()
+	defer mapLock.Unlock()
+	data, err := json.Marshal(a)
+	if err != nil {
+		http.Error(w, "failed to marshal export data", http.StatusInternalServerError)
+		return
+	}
+	_, _ = w.Write(data)
 }
 
 func (a *App) collector(baseURL string) {
