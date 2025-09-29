@@ -89,7 +89,7 @@ func main() {
 	slog.SetDefault(l)
 
 	a := NewApp()
-	l.Info("starting fluffy robot", "version", "0.0.3")
+	l.Info("starting fluffy robot", "version", "0.0.5")
 
 	if loc, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_BACKUP_PATH"); ok {
 		backupLocation = loc

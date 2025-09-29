@@ -46,6 +46,7 @@ func (a *App) collect(apiURL string) {
 	page := 1
 
 	for { // loop until we have all the pages
+		slog.Info("Getting agents", "page", page)
 		var perPage = 20 // can't see ever changing this
 		fullURL := fmt.Sprintf("%s/agents?limit=%d&page=%d", apiURL, perPage, page)
 
@@ -111,7 +112,7 @@ func (a *App) getServerStatus(apiURL string) {
 		Timeout: 5 * time.Second, // Set a reasonable timeout
 	}
 
-	slog.Error("Looking to update server status")
+	slog.Info("Looking to update server status")
 	fullURL := fmt.Sprintf("%s/", apiURL)
 
 	resp, err := client.Get(fullURL)
