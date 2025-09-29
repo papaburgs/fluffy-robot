@@ -1,0 +1,6 @@
+# ide/editor
+.idea
+.vscode
+
+# app backups
+*.json
