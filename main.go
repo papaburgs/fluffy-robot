@@ -109,7 +109,6 @@ func main() {
 }
 
 func (a *App) renderPage(w io.Writer) {
-	slog.Debug("Starting render", "agents", agents)
 	page := components.NewPage()
 	page.AddCharts(
 		a.Last1CreditChart(agents),
@@ -246,7 +245,6 @@ func (a *App) collector(baseURL string) {
 	for {
 		select {
 		case <-checkTimer.C:
-			slog.Debug("collecting")
 			a.collect(baseURL)
 
 		}
