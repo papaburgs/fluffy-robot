@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -67,6 +68,22 @@ func NewApp() *App {
 	return &a
 }
 
+func collectionsEnabled() bool {
+	enabled := true
+	collectionsDisabledEnv := os.Getenv("COLLECTIONS_DISABLED")
+	if collectionsDisabledEnv != "" {
+		disabled, err := strconv.ParseBool(os.Getenv("COLLECTIONS_DISABLED"))
+		if err != nil {
+			slog.Error("error parsing boolean value from env COLLECTIONS_DISABLED", "error", err.Error())
+		}
+		if disabled {
+			enabled = false
+		}
+	}
+	slog.Info("collections enabled", "value", enabled)
+	return enabled
+}
+
 func main() {
 
 	h := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
@@ -100,7 +117,9 @@ func main() {
 	}
 
 	a.Restore()
-	go a.collector("https://api.spacetraders.io/v2")
+	if collectionsEnabled() {
+		go a.collector("https://api.spacetraders.io/v2")
+	}
 	// Register the handler function for the root URL path ("/").
 	http.HandleFunc("/", a.RootHandler)
 	http.HandleFunc("/export", a.ExportHandler)
