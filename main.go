@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	_ "embed"
 	"log/slog"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
@@ -20,6 +21,9 @@ import (
 )
 
 var collectPointsPerHour int
+
+//go:embed main.css
+var mainCss string
 
 var agents = []string{
 	"BURG",
@@ -131,12 +135,20 @@ func main() {
 
 func (a *App) renderPage(w io.Writer) {
 	page := components.NewPage()
+	page.SetPageTitle("Fluffy Robot")
+	_, err := w.Write([]byte(`<style>` + mainCss + `</style>`))
+	if err != nil {
+		slog.Error("Error writing embedded main.css", "error", err)
+	}
 	page.AddCharts(
 		a.Last1CreditChart(agents),
 		a.Last4CreditChart(agents),
 		a.Last24CreditChart(agents),
 	)
-	page.Render(io.MultiWriter(w))
+	err = page.Render(io.MultiWriter(w))
+	if err != nil {
+		slog.Error("Error rendering page", "error", err)
+	}
 }
 
 func (a *App) Last24CreditChart(agents []string) *charts.Line {
