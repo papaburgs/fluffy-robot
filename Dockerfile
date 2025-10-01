@@ -16,6 +16,7 @@ COPY go.mod go.sum ./
 
 # Copy the rest of the application source code from the specified path
 COPY *.go ./
+COPY *.css ./
 
 RUN go mod tidy; go mod download
 
