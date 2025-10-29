@@ -1,9 +1,7 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -14,16 +12,9 @@ import (
 
 	_ "embed"
 	"log/slog"
-
-	"github.com/go-echarts/go-echarts/v2/charts"
-	"github.com/go-echarts/go-echarts/v2/components"
-	"github.com/go-echarts/go-echarts/v2/opts"
 )
 
 var collectPointsPerHour int
-
-//go:embed main.css
-var mainCss string
 
 var agents = []string{
 	"BURG",
@@ -41,23 +32,8 @@ type AgentRecord struct {
 // 	Agent   string
 // }
 
-type App struct {
-	Current   map[string][]AgentRecord
-	LastReset map[string][]AgentRecord
-	Reset     string
-	Accounts  int
-	Agents    int
-	Ships     int
-}
-
 var mapLock sync.Mutex
 var backupLocation string
-
-func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html")
-	// Generate the chart.
-	a.renderPage(w)
-}
 
 func NewApp() *App {
 	m := make(map[string][]AgentRecord)
@@ -89,7 +65,6 @@ func collectionsEnabled() bool {
 }
 
 func main() {
-
 	h := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
 	if logl, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_LOG_LEVEL"); !ok {
 		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
@@ -127,158 +102,13 @@ func main() {
 	// Register the handler function for the root URL path ("/").
 	http.HandleFunc("/", a.RootHandler)
 	http.HandleFunc("/export", a.ExportHandler)
+	http.HandleFunc("/agents", a.AgentsHandler)
+	http.HandleFunc("/status", a.HeaderHandler)
+	http.HandleFunc("/chart", a.LoadChartHandler)
 
 	// Start the web server and listen on port 8845.
 	fmt.Println("Starting server on http://localhost:8845")
 	log.Fatal(http.ListenAndServe(":8845", nil))
-}
-
-func (a *App) renderPage(w io.Writer) {
-	page := components.NewPage()
-	page.SetPageTitle("Fluffy Robot")
-	_, err := w.Write([]byte(`<style>` + mainCss + `</style>`))
-	if err != nil {
-		slog.Error("Error writing embedded main.css", "error", err)
-	}
-	page.AddCharts(
-		a.Last1CreditChart(agents),
-		a.Last4CreditChart(agents),
-		a.Last24CreditChart(agents),
-	)
-	err = page.Render(io.MultiWriter(w))
-	if err != nil {
-		slog.Error("Error rendering page", "error", err)
-	}
-}
-
-func (a *App) Last24CreditChart(agents []string) *charts.Line {
-	line := charts.NewLine()
-	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
-	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{
-			Theme: "dark",
-		}),
-		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last 24 hours",
-			Subtitle: "Data point every 15 minutes",
-		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
-			// Max: 200,
-		}),
-		charts.WithXAxisOpts(opts.XAxis{
-			Type: "time",
-			Min:  tfha,
-		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
-			Show:    opts.Bool(true),
-			Trigger: "axis",
-		}),
-	)
-	mapLock.Lock()
-	defer mapLock.Unlock()
-	for _, p := range agents {
-		hist := a.Current[p]
-		items := make([]opts.LineData, 0)
-		for i, r := range hist {
-			if i%10 == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
-			}
-		}
-		line.AddSeries(p, items)
-	}
-	return line
-}
-
-func (a *App) Last4CreditChart(agents []string) *charts.Line {
-	line := charts.NewLine()
-	tfha := int(time.Now().Add(-4 * 60 * time.Minute).UnixMilli())
-	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{
-			Theme: "dark",
-		}),
-		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last 4 hours",
-			Subtitle: "20 Data Points per hour",
-		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
-			// Max: 200,
-		}),
-		charts.WithXAxisOpts(opts.XAxis{
-			Type: "time",
-			Min:  tfha,
-		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
-			Show:    opts.Bool(true),
-			Trigger: "axis",
-		}),
-	)
-	mapLock.Lock()
-	defer mapLock.Unlock()
-	for _, p := range agents {
-		hist := a.Current[p]
-		items := make([]opts.LineData, 0)
-		for i, r := range hist {
-			if i%2 == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
-			}
-		}
-		line.AddSeries(p, items)
-	}
-
-	return line
-}
-
-func (a *App) Last1CreditChart(agents []string) *charts.Line {
-	line := charts.NewLine()
-	tfha := int(time.Now().Add(-1 * 60 * time.Minute).UnixMilli())
-	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{
-			Theme: "dark",
-		}),
-		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last hour",
-			Subtitle: "All Data points",
-		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
-			// Max: 200,
-		}),
-		charts.WithXAxisOpts(opts.XAxis{
-			Type: "time",
-			Min:  tfha,
-		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
-			Show:    opts.Bool(true),
-			Trigger: "axis",
-		}),
-	)
-	mapLock.Lock()
-	defer mapLock.Unlock()
-	for _, p := range agents {
-		hist := a.Current[p]
-		items := make([]opts.LineData, 0)
-		for _, r := range hist {
-			items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
-		}
-		line.AddSeries(p, items)
-	}
-
-	return line
-}
-
-func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", `attachment; filename="backup.json"`)
-	mapLock.Lock()
-	defer mapLock.Unlock()
-	data, err := json.Marshal(a)
-	if err != nil {
-		http.Error(w, "failed to marshal export data", http.StatusInternalServerError)
-		return
-	}
-	_, _ = w.Write(data)
 }
 
 func (a *App) collector(baseURL string) {
@@ -292,7 +122,6 @@ func (a *App) collector(baseURL string) {
 		select {
 		case <-checkTimer.C:
 			a.collect(baseURL)
-
 		}
 	}
 }
