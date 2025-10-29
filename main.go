@@ -111,6 +111,7 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8845", nil))
 }
 
+
 func (a *App) collector(baseURL string) {
 	// do it this way so the render funcs can just look at the points per hour to determine how many points to select
 	collectEvery := 5
