@@ -120,19 +120,42 @@ header {
 .agent-button.selected:hover {
     background-color: #264fa5; /* A slightly lighter blue on hover */
 }
+.button-group {
+
+  display: flex;
+  gap: 15px; 
+}
+
+.time-button {
+  width: 120px;
+  
+  flex-shrink: 0; 
+  flex-grow: 0;
+  text-align: center;
+  
+  /* height: 60px;  */
+  white-space: nowrap; 
+}
     </style>
 </head>
 <body>
 
     <header id="header-status">
-        <!-- <div hx-get="/status" hx-trigger="load, every 5s" hx-swap="outerHTML"> -->
+	<!--
         <div hx-get="/status"  hx-swap="outerHTML"> 
-            Loading header status...
         </div>
+		-->
+		<div class="button-group">
+		Time range: 
+            <button class="time-button" hx-get="/chart" hx-vals='{"period": "1h"}' hx-target="#chart-content">Last 1h</button>
+            <button class="time-button" hx-get="/chart" hx-vals='{"period": "4h"}' hx-target="#chart-content">Last 4h</button>
+            <button class="time-button" hx-get="/chart" hx-vals='{"period": "24h"}' hx-target="#chart-content">Last 24h</button>
+		</div>
     </header>
 
     <div class="main-container">
         
+	<!--
         <div id="sidebar">
             <h3>Time Filters</h3>
             <button class="time-button" hx-get="/chart" hx-vals='{"period": "1h"}' hx-target="#chart-content">Load Last Hour</button>
@@ -146,7 +169,7 @@ header {
                 </div>
             </div>
         </div>
-
+	-->
         <div id="content">
             <h2>Chart Visualization</h2>
             <div id="chart-content">
