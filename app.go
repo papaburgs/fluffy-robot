@@ -35,7 +35,6 @@ func (a *App) HeaderHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, headerPartial)
 }
 
-
 func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
