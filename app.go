@@ -35,7 +35,6 @@ func (a *App) HeaderHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprint(w, headerPartial)
 }
 
-
 func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
@@ -153,6 +152,51 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 	return line
 }
 
+func (a *App) Last7dCreditChart(agents []string) *charts.Line {
+	line := charts.NewLine()
+	weekAgoMs := int(time.Now().Add(-7 * 24 * time.Hour).UnixMilli())
+
+	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{Theme: "dark"}),
+		charts.WithTitleOpts(opts.Title{
+			Title:    "Credits - last 7 days",
+			Subtitle: "Adaptive down-sampling",
+		}),
+		charts.WithYAxisOpts(opts.YAxis{Min: 0}),
+		charts.WithXAxisOpts(opts.XAxis{Type: "time", Min: weekAgoMs}),
+		charts.WithTooltipOpts(opts.Tooltip{Show: opts.Bool(true), Trigger: "axis"}),
+	)
+
+	// Adaptive stride to keep point count reasonable
+	totalPerHour := collectPointsPerHour
+	if totalPerHour == 0 {
+		totalPerHour = 12 // assume 5-min cadence
+	}
+	estimatedTotal := 7 * 24 * totalPerHour
+	targetPoints := 200
+	stride := 1
+	if estimatedTotal > targetPoints {
+		stride = estimatedTotal / targetPoints
+		if stride < 1 {
+			stride = 1
+		}
+	}
+
+	mapLock.Lock()
+	defer mapLock.Unlock()
+	for _, p := range agents {
+		hist := a.Current[p]
+		items := make([]opts.LineData, 0, len(hist)/stride+1)
+		for i, r := range hist {
+			if i%stride == 0 {
+				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+			}
+		}
+		line.AddSeries(p, items)
+	}
+	return line
+}
+
 func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", `attachment; filename="backup.json"`)
@@ -205,6 +249,8 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 		line = a.Last24CreditChart(agents)
 	case "4h":
 		line = a.Last4CreditChart(agents)
+	case "7d":
+		line = a.Last7dCreditChart(agents)
 	default:
 		line = a.Last1CreditChart(agents)
 

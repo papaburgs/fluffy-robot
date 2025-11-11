@@ -145,11 +145,12 @@ header {
         <div hx-get="/status"  hx-swap="outerHTML"> 
         </div>
 		-->
-		<div class="button-group">
+        <div class="button-group">
 		Time range: 
             <button class="time-button" hx-get="/chart" hx-vals='{"period": "1h"}' hx-target="#chart-content">Last 1h</button>
             <button class="time-button" hx-get="/chart" hx-vals='{"period": "4h"}' hx-target="#chart-content">Last 4h</button>
             <button class="time-button" hx-get="/chart" hx-vals='{"period": "24h"}' hx-target="#chart-content">Last 24h</button>
+            <button class="time-button" hx-get="/chart" hx-vals='{"period": "7d"}' hx-target="#chart-content">Last 7d</button>
 		</div>
     </header>
 
