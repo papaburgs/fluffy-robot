@@ -6,6 +6,8 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
@@ -240,19 +242,71 @@ func RenderChartFragment(w io.Writer, chart render.Renderer) error {
 	return tmpl.Execute(w, data)
 }
 
+// mergeAgents merges the global base agent list with any additional agents
+// provided via the URL query values. It supports repeated keys
+// (?agents=A&agents=B) and comma-separated lists (?agents=A,B), trims
+// whitespace, ignores empties, and de-duplicates while preserving order.
+// The base slice is not mutated.
+func mergeAgents(base []string, q url.Values) []string {
+	// Copy base to avoid mutating the global slice.
+	outBase := make([]string, len(base))
+	copy(outBase, base)
+
+	// Collect extras from query params.
+	var extras []string
+	if vals, ok := q["agents"]; ok {
+		for _, v := range vals {
+			for _, part := range strings.Split(v, ",") {
+				s := strings.TrimSpace(part)
+				if s != "" {
+					extras = append(extras, s)
+				}
+			}
+		}
+	}
+
+	if len(extras) == 0 {
+		return outBase
+	}
+
+	// De-duplicate while preserving order: globals first, then extras.
+	seen := make(map[string]struct{}, len(outBase)+len(extras))
+	merged := make([]string, 0, len(outBase)+len(extras))
+	for _, a := range outBase {
+		if _, ok := seen[a]; !ok {
+			seen[a] = struct{}{}
+			merged = append(merged, a)
+		}
+	}
+	for _, e := range extras {
+		if _, ok := seen[e]; !ok {
+			seen[e] = struct{}{}
+			merged = append(merged, e)
+		}
+	}
+	return merged
+}
+
 func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
+	// Read query params
+	q := r.URL.Query()
+
+	// Build effective list of agents from globals plus any provided via query.
+	effectiveAgents := mergeAgents(agents, q)
 
 	var line *charts.Line
 
-	switch r.FormValue("period") {
+	// Read period from query and select chart.
+	period := q.Get("period")
+	switch period {
 	case "24h":
-		line = a.Last24CreditChart(agents)
+		line = a.Last24CreditChart(effectiveAgents)
 	case "4h":
-		line = a.Last4CreditChart(agents)
+		line = a.Last4CreditChart(effectiveAgents)
 	case "7d":
-		line = a.Last7dCreditChart(agents)
+		line = a.Last7dCreditChart(effectiveAgents)
 	default:
-		line = a.Last1CreditChart(agents)
+		line = a.Last1CreditChart(effectiveAgents)
 
 	}
 
