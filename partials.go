@@ -146,14 +146,13 @@ header {
     </form>
 
     <script>
-      // Mirror URL query params needed by htmx and optionally auto-load a chart
-      // when a period is present. Keeps JS minimal and avoids inline JS in attributes.
+      // Mirror URL query params needed by htmx and optionally auto-load a chart when a period is present. 
       document.addEventListener('DOMContentLoaded', function () {
         try {
           var usp = new URLSearchParams(window.location.search || "");
 
-          // Mirror agents from URL into hidden field WITHOUT client-side dedupe.
-          // Supports repeated keys (?agents=A&agents=B) and CSV (?agents=A,B).
+          // Mirror agents from URL into hidden field
+          // Server side parser supports repeated keys (?agents=A&agents=B) and CSV (?agents=A,B).
           var vals = usp.getAll('agents');
           var field = document.getElementById('qs-agents');
           if (field) {
