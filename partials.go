@@ -140,6 +140,40 @@ header {
 </head>
 <body>
 
+    <!-- Hidden container that mirrors current URL query params needed for htmx requests -->
+    <form id="query-state" style="display:none;">
+        <input type="hidden" name="agents" id="qs-agents" value="">
+    </form>
+
+    <script>
+      // Mirror URL query params needed by htmx and optionally auto-load a chart
+      // when a period is present. Keeps JS minimal and avoids inline JS in attributes.
+      document.addEventListener('DOMContentLoaded', function () {
+        try {
+          var usp = new URLSearchParams(window.location.search || "");
+
+          // Mirror agents from URL into hidden field WITHOUT client-side dedupe.
+          // Supports repeated keys (?agents=A&agents=B) and CSV (?agents=A,B).
+          var vals = usp.getAll('agents');
+          var field = document.getElementById('qs-agents');
+          if (field) {
+            // Preserve order and duplicates; server will normalize.
+            field.value = vals.join(',');
+          }
+
+          // Auto-load chart if period is present
+          var period = usp.get('period');
+          if (period && period.trim() !== '') {
+            var values = { period: period };
+            if (field && field.value) values.agents = field.value; // comma-separated OK
+            htmx.ajax('GET', '/chart', {
+              target: '#chart-content', swap: 'innerHTML', values: values
+            });
+          }
+        } catch (_) { /* no-op */ }
+      });
+    </script>
+
     <header id="header-status">
 	<!--
         <div hx-get="/status"  hx-swap="outerHTML"> 
@@ -147,10 +181,10 @@ header {
 		-->
         <div class="button-group">
 		Time range: 
-            <button class="time-button" hx-get="/chart" hx-vals='{"period": "1h"}' hx-target="#chart-content">Last 1h</button>
-            <button class="time-button" hx-get="/chart" hx-vals='{"period": "4h"}' hx-target="#chart-content">Last 4h</button>
-            <button class="time-button" hx-get="/chart" hx-vals='{"period": "24h"}' hx-target="#chart-content">Last 24h</button>
-            <button class="time-button" hx-get="/chart" hx-vals='{"period": "7d"}' hx-target="#chart-content">Last 7d</button>
+            <button class="time-button" hx-get="/chart" hx-vals='{"period":"1h"}' hx-include="#query-state" hx-target="#chart-content">Last 1h</button>
+            <button class="time-button" hx-get="/chart" hx-vals='{"period":"4h"}' hx-include="#query-state" hx-target="#chart-content">Last 4h</button>
+            <button class="time-button" hx-get="/chart" hx-vals='{"period":"24h"}' hx-include="#query-state" hx-target="#chart-content">Last 24h</button>
+            <button class="time-button" hx-get="/chart" hx-vals='{"period":"7d"}' hx-include="#query-state" hx-target="#chart-content">Last 7d</button>
 		</div>
     </header>
 
@@ -202,5 +236,5 @@ var agentsPartial = `
 `
 
 var chartPartial = `
-<div id=chart>{{ .Element }} {{ .Script }}<div>
+<div id="chart">{{ .Element }} {{ .Script }}</div>
 `
