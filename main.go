@@ -1,51 +1,25 @@
 package main
 
 import (
-	"fmt"
-	"log"
+	"embed"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
-	"time"
+
+	"log/slog"
 
 	_ "embed"
-	"log/slog"
+
+	"github.com/papaburgs/fluffy-robot/internal/app"
 )
 
-var collectPointsPerHour int
+//go:embed static
+var staticFiles embed.FS // This variable now holds the entire 'static' directory
 
 var agents = []string{
 	"BURG",
 	"HIVE",
-}
-
-type AgentRecord struct {
-	Timestamp time.Time
-	ShipCount int
-	Credits   int
-}
-
-// type History struct {
-// 	Records []AgentRecord
-// 	Agent   string
-// }
-
-var mapLock sync.Mutex
-var backupLocation string
-
-func NewApp() *App {
-	m := make(map[string][]AgentRecord)
-	n := make(map[string][]AgentRecord)
-	a := App{
-		Current:   m,
-		LastReset: n,
-		Reset:     "00000",
-		Agents:    0,
-		Ships:     0,
-	}
-	return &a
 }
 
 func collectionsEnabled() bool {
@@ -85,21 +59,28 @@ func main() {
 	l := slog.New(h)
 	slog.SetDefault(l)
 
-	a := NewApp()
-	l.Info("starting fluffy robot", "version", "0.0.5")
-
-	if loc, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_BACKUP_PATH"); ok {
-		backupLocation = loc
+	////////// Static file handling \\\\\\\\\\
+	// define this value to be something in order to use the 'external' css to make it easier to work on
+	// leaving it unset will embed the directory instead to make it easier for a server
+	if _, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_STATIC_DEV"); ok {
+		// Dev case
+		fs := http.FileServer(http.Dir("./static"))
+		http.Handle("/static/", http.StripPrefix("/static/", fs))
 	} else {
-		slog.Debug("no backup location, will use local dir")
-		backupLocation = "."
+		// production case
+		fsHandler := http.FileServer(http.FS(staticFiles))
+		http.Handle("/static/", fsHandler)
 	}
 
-	a.Restore()
-	if collectionsEnabled() {
-		go a.collector("https://api.spacetraders.io/v2")
+	storageLocation := "."
+	if loc, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_BACKUP_PATH"); ok {
+		storageLocation = loc
 	}
-	// Register the handler function for the root URL path ("/").
+	slog.Debug("storage location:", "base", storageLocation)
+
+	a := app.NewApp(storageLocation, collectionsEnabled())
+	l.Info("starting fluffy robot", "version", "2.0.0")
+
 	http.HandleFunc("/", a.RootHandler)
 	http.HandleFunc("/export", a.ExportHandler)
 	http.HandleFunc("/agents", a.AgentsHandler)
@@ -107,21 +88,6 @@ func main() {
 	http.HandleFunc("/chart", a.LoadChartHandler)
 
 	// Start the web server and listen on port 8845.
-	fmt.Println("Starting server on http://localhost:8845")
-	log.Fatal(http.ListenAndServe(":8845", nil))
-}
-
-func (a *App) collector(baseURL string) {
-	// do it this way so the render funcs can just look at the points per hour to determine how many points to select
-	collectEvery := 5
-	checkTimerDuration := time.Duration(collectEvery) * time.Minute
-	collectPointsPerHour = 60 / collectEvery
-
-	checkTimer := time.NewTicker(checkTimerDuration)
-	for {
-		select {
-		case <-checkTimer.C:
-			a.collect(baseURL)
-		}
-	}
+	l.Info("Starting server on http://localhost:8845")
+	l.Warn("Server Done", "Error", http.ListenAndServe(":8845", nil))
 }

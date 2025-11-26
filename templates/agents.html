@@ -1,0 +1,7 @@
+<h3>Agents</h3>
+{{range .}}
+    <div>
+        <input type="checkbox" name="agent" value="{{.ID}}" id="agent-{{.ID}}">
+        <label for="agent-{{.ID}}">{{.Name}}</label>
+    </div>
+{{end}}
