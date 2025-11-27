@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 )
@@ -14,7 +15,23 @@ func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("reloading cache")
 		a.agentCache.ReloadData(a.Reset)
 	}
-	a.t.ExecuteTemplate(w, "index.html", nil)
+	q := r.URL.Query()
+	slog.Debug("query output")
+	for k, v := range q {
+		slog.Debug("chart handler", "key", k, "val", v)
+	}
+	agents := mergeAgents([]string{}, q)
+	slog.Debug("agents after  merge", "a", agents)
+	if len(agents) == 0 {
+		agents = []string{"BURG", "HIVE"}
+	}
+
+	d := struct {
+		AgentVals string
+	}{
+		AgentVals: strings.Join(agents, ","),
+	}
+	a.t.ExecuteTemplate(w, "index.html", d)
 }
 
 func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
@@ -23,12 +40,20 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 		a.agentCache.ReloadData(a.Reset)
 	}
 
-	// Read query params
 	q := r.URL.Query()
-
-	agents := []string{"BURG", "HIVE"}
-	// Build effective list of agents from globals plus any provided via query.
-	effectiveAgents := mergeAgents(agents, q)
+	slog.Debug("query output")
+	for k, v := range q {
+		slog.Debug("chart handler", "key", k, "val", v)
+	}
+	agents := mergeAgents([]string{}, q)
+	slog.Debug("agents after  merge", "a", agents)
+	if len(agents) == 0 {
+		agents = []string{"BURG", "HIVE"}
+	}
+	slog.Debug("query output")
+	for k, v := range q {
+		slog.Debug("chart handler", "key", k, "val", v)
+	}
 
 	var line *charts.Line
 
@@ -36,13 +61,13 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	period := q.Get("period")
 	switch period {
 	case "24h":
-		line = a.Last24CreditChart(effectiveAgents)
+		line = a.Last24CreditChart(agents)
 	case "4h":
-		line = a.Last4CreditChart(effectiveAgents)
+		line = a.Last4CreditChart(agents)
 	case "7d":
-		line = a.Last7dCreditChart(effectiveAgents)
+		line = a.Last7dCreditChart(agents)
 	default:
-		line = a.Last1CreditChart(effectiveAgents)
+		line = a.Last1CreditChart(agents)
 
 	}
 
