@@ -1,0 +1,168 @@
+body {
+    /* Use a slightly softer dark gray for the background */
+    background-color: #121212;
+    color: #E0E0E0; /* Light gray for main text color */
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* A more modern, clean font */
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    margin: 0;
+}
+
+header {
+}
+
+.main-container {
+    display: flex;
+    flex: 1;
+}
+
+
+/* --- Content Area Styling --- */
+#content {
+    flex: 1;
+    padding: 20px;
+    color: #D3D3D3; /* Slightly off-white for content text */
+}
+
+#chart {
+    padding: 30px;
+    background-color: #242424; /* Background for the chart area */
+    border-radius: 8px; /* Rounded corners for the chart area */
+    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
+}
+
+nav {
+    padding: 15px 20px;
+    background: #1F3C88;
+    color: #FFFFFF;
+    font-size: 1.5em;
+    font-weight: bold;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: row;
+    margin: 15px;
+    /* Ensure the nav bar content is vertically centered */
+    align-items: center; 
+    /* The children should take up the available width */
+    width: auto; /* Or 100% depending on desired width */
+}
+/* Target the div that contains the Time range and Config spans */
+/* This corresponds to: <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'> */
+nav > div > div {
+    display: flex;
+    /* This pushes the first span (Time range) to the left and the second span (Config) to the far right */
+    justify-content: space-between;
+    /* Center items vertically within this container */
+    align-items: center; 
+    /* Ensure it takes the full width of the nav to allow space-between to work */
+    width: 100%; 
+}
+
+/* Ensure the outer div also takes up the width */
+nav > div {
+    width: 100%;
+}
+
+.time-button {
+    width: 100%;
+    margin: 1px 10px 8px;
+    padding: 12px;
+    border: none;
+    background-color: #3A3A3A; /* Dark gray background */
+    color: #FFFFFF;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 20px; /* **More rounded** */
+    transition: background-color 0.2s, transform 0.1s;
+  width: 120px;
+  
+  flex-shrink: 0; 
+  flex-grow: 0;
+  text-align: center;
+  
+  /* height: 60px;  */
+  white-space: nowrap; 
+}
+.config-button {
+    /* Set a fixed size for the icon button */
+    width: 40px; 
+    height: 40px;
+    
+    /* Style the appearance */
+    border: none;
+    background-color: transparent; /* Make background transparent */
+    color: #FFFFFF;
+    text-align: center;
+    cursor: pointer;
+    border-radius: 50%; /* Make it perfectly circular */
+    font-size: 1.8em; /* Make the gear icon larger */
+    padding: 0; /* Remove default padding */
+    line-height: 40px; /* Vertically center the icon */
+    
+    transition: background-color 0.2s;
+
+    /* Removed unnecessary flex properties for a simple button */
+    flex-shrink: 0; 
+    flex-grow: 0; 
+    white-space: nowrap; 
+}
+
+.config-button:hover {
+    background-color: rgba(255, 255, 255, 0.2); /* Subtle hover effect */
+}
+
+.time-button:hover {
+    background-color: #555555;
+    transform: translateY(-1px);
+}
+
+/* --- Agent List Styling --- */
+.agent-list {
+    margin-top: 30px;
+    border-top: 1px solid #333; /* Darker border */
+    padding-top: 15px;
+}
+
+/* Default style for an agent button (not selected) */
+.agent-button {
+    display: block;
+    width: 100%;
+    margin-bottom: 8px;
+    padding: 10px 15px;
+    border: 1px solid #444; /* Subtle border */
+    background-color: #282828; /* Slightly darker than sidebar */
+    color: #B0B0B0; /* Muted text color */
+    text-align: left;
+    cursor: pointer;
+    border-radius: 10px; /* **Rounded corners** for agent list */
+    transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+}
+
+.agent-button:hover {
+    background-color: #3A3A3A;
+    color: #FFFFFF;
+    border-color: #1F3C88;
+}
+
+/* Style for the **selected** agent button */
+.agent-button.selected {
+    background-color: #1F3C88; /* The primary blue for selection */
+    color: #FFFFFF;
+    font-weight: bold;
+    border-color: #1F3C88;
+    box-shadow: 0 2px 5px rgba(31, 60, 136, 0.5); /* Subtle glow effect */
+}
+
+.agent-button.selected:hover {
+    background-color: #264fa5; /* A slightly lighter blue on hover */
+}
+.button-group {
+
+  display: flex;
+  gap: 15px; 
+}
+
+.time-button {
+}
+

@@ -1,0 +1,21 @@
+<form id="agent-form">
+    <h3>Available Agents</h3>
+    <ul>
+    {{range .}}
+        <li class="agentlist-item">
+            <input 
+              {{if .IsActive}} class="agent-active"{{else}} class="agent-inactive"{{end}} 
+              type="checkbox" name="agent" value="{{.Name}}" id="agent-{{.Name}}"
+              {{if .IsChecked}} checked{{end}}>
+            <label for="agent-{{.Name}}">{{.Name}}</label>
+        </li>
+    {{end}}
+    
+        </ul>
+    <br>
+    
+    <button type="button" onclick="saveSelectedAgents()">
+        💾 Save Agent Selections
+    </button>
+</form>
+
