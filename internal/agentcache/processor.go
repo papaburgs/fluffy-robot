@@ -78,6 +78,7 @@ func NewAgentProcessor(dirPath string) (*AgentProcessor, error) {
 // loadData reads all JSON files in the directory and populates the cache.
 // It is called during initialization or if the cache is reloaded later.
 func (p *AgentProcessor) loadData(resetDate string) error {
+	start := time.Now()
 	p.cache = make(AgentData)
 	slog.Debug("loaddata start", "reset", resetDate)
 
@@ -129,6 +130,8 @@ func (p *AgentProcessor) loadData(resetDate string) error {
 			return records[i].Timestamp.Before(records[j].Timestamp)
 		})
 	}
+	dur := time.Now().Sub(start)
+	slog.Info("Cache generated", "duration", dur)
 
 	return nil
 }
@@ -156,6 +159,32 @@ func (p *AgentProcessor) GetAgentRecords(symbol string) ([]AgentRecord, error) {
 	recordsCopy := make([]AgentRecord, len(records))
 	copy(recordsCopy, records)
 	return recordsCopy, nil
+}
+
+// GetAllAgents returns a map of a string to a bool
+// if true that means the agent looks like they are active, ie, not 175k
+func (p *AgentProcessor) GetAllAgents() (map[string]bool, error) {
+	p.cacheLock.RLock()
+	defer p.cacheLock.RUnlock()
+
+	res := make(map[string]bool)
+
+	// Check if the cache has been evicted
+	if p.cache == nil {
+		return nil, fmt.Errorf("cache is empty, please call ReloadData() first")
+	}
+
+	// Reset the timer as the cache was accessed
+	p.resetTimer()
+
+	for symbol, recordList := range p.cache {
+		res[symbol] = true
+		if recordList[len(recordList)-1].Credits == 175000 {
+			res[symbol] = false
+		}
+	}
+
+	return res, nil
 }
 
 // evictCache is called when the timer expires. It releases memory by setting the cache to nil.
@@ -189,7 +218,7 @@ func (p *AgentProcessor) resetTimer() {
 
 	// Start a new timer
 	p.evictionTimer = time.AfterFunc(EvictionDuration, p.evictCache)
-	slog.Info("Eviction timer reset", "timerDuration", EvictionDuration)
+	slog.Debug("Eviction timer reset", "timerDuration", EvictionDuration)
 }
 
 // ReloadData can be called manually to force a reload from the directory.

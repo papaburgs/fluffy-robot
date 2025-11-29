@@ -48,7 +48,7 @@ func collect(ctx context.Context, apiURL, basePath string, gate *gate.Gate, rese
 		if ctx.Err() != nil {
 			return
 		}
-		slog.Info("Getting agents", "page", page)
+		slog.Debug("Getting agents", "page", page)
 		var perPage = 20 // can't see ever changing this unless the api offers more
 		fullURL := fmt.Sprintf("%s/agents?limit=%d&page=%d", apiURL, perPage, page)
 
@@ -103,7 +103,7 @@ func getServerStatus(ctx context.Context, apiURL, basePath string, gate *gate.Ga
 		Timeout: 5 * time.Second, // Set a reasonable timeout
 	}
 
-	slog.Info("Looking to update server status")
+	slog.Debug("Looking to update server status")
 	fullURL := fmt.Sprintf("%s/", apiURL)
 
 	gate.Latch(ctx)

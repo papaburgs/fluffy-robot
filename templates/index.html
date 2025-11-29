@@ -10,16 +10,24 @@
     <body>
         <header>
         </header>
-        <nav
-            {{if .AgentVals}}
-            hx-vals='{"agents": "{{printf `%s` .AgentVals}}"}'
-            {{end}}
-            >
-            Time range: 
-            <button class="time-button" hx-get="/chart" hx-vals='{"period":"1h"}'  hx-target="#chart-content">Last 1h</button>
-            <button class="time-button" hx-get="/chart" hx-vals='{"period":"4h"}'  hx-target="#chart-content">Last 4h</button>
-            <button class="time-button" hx-get="/chart" hx-vals='{"period":"24h"}' hx-target="#chart-content" hx-trigger="load">Last 24h</button>
-            <button class="time-button" hx-get="/chart" hx-vals='{"period":"7d"}'  hx-target="#chart-content">Last 7d</button>
+        <nav>
+            <div {{if .AgentVals}}
+                hx-vals='{"paramAgents": "{{printf `%s` .AgentVals}}"}'
+                {{end}}
+                >
+                <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'>
+                    <span>
+                        Time range: 
+                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"1h"}'  hx-target="#chart-content">Last 1h</button>
+                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"4h"}'  hx-target="#chart-content">Last 4h</button>
+                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"24h"}' hx-target="#chart-content" hx-trigger="load">Last 24h</button>
+                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"7d"}'  hx-target="#chart-content">Last 7d</button>
+                    </span>
+                    <span>
+                        <button class="config-button" hx-get="/agentlist" hx-target="#chart-content" aria-label="Configuration">&#x2699;</button>
+                    </span>
+                </div>
+            </div>
         </nav>
 
         <main>   
@@ -28,6 +36,31 @@
                 Click a filter button to load a chart.
             </div>
         </main>
+        <footer>
+            This will be a small about page, maybe a link to github and railway
+        </footer>
+        <script>
+            const AGENT_STORAGE_KEY = 'selected-agents';
+
+            function saveSelectedAgents() {
+                const checkedAgents = document.querySelectorAll('#agent-form input[name="agent"]:checked');
+
+                const selectedValues = Array.from(checkedAgents).map(input => input.value);
+                const agentsString = selectedValues.join(',');
+                localStorage.setItem(AGENT_STORAGE_KEY, agentsString);
+
+                alert(`Settings saved! Stored value: ${agentsString}`);
+            }
+
+            function getStoredAgentsForHxVals() {
+                // Get the string from localStorage
+                const savedAgents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
+                console.log("this got called")
+                console.log(savedAgents)
+                // Format the string for hx-vals: 'agentList:Alpha,Charlie'
+                return `${savedAgents}`;
+            }
+        </script>
     </body>
 </html>
 

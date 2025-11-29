@@ -17,11 +17,6 @@ import (
 //go:embed static
 var staticFiles embed.FS // This variable now holds the entire 'static' directory
 
-var agents = []string{
-	"BURG",
-	"HIVE",
-}
-
 func collectionsEnabled() bool {
 	enabled := true
 	collectionsDisabledEnv := os.Getenv("COLLECTIONS_DISABLED")
@@ -86,6 +81,7 @@ func main() {
 	http.HandleFunc("/agents", a.AgentsHandler)
 	http.HandleFunc("/status", a.HeaderHandler)
 	http.HandleFunc("/chart", a.LoadChartHandler)
+	http.HandleFunc("/agentlist", a.AgentListHandler)
 
 	// Start the web server and listen on port 8845.
 	l.Info("Starting server on http://localhost:8845")

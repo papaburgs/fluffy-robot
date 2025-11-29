@@ -4,7 +4,7 @@ import (
 	"context"
 	"html/template"
 	"log/slog"
-	"net/url"
+	"reflect"
 	"strings"
 	"time"
 
@@ -37,9 +37,8 @@ type App struct {
 func NewApp(storage string, collect bool) *App {
 	var (
 		err          error
-		collectEvery = 2
+		collectEvery = 5
 	)
-	slog.Warn("TODO - reset collectEvery back to 5")
 	a := App{
 		StorageRoot:          storage,
 		Reset:                "00000",
@@ -67,47 +66,59 @@ func NewApp(storage string, collect bool) *App {
 	return &a
 }
 
-// mergeAgents merges the global base agent list with any additional agents
-// provided via the URL query values. It supports repeated keys
-// (?agents=A&agents=B) and comma-separated lists (?agents=A,B), trims
-// whitespace, ignores empties, and de-duplicates while preserving order.
-// The base slice is not mutated.
-func mergeAgents(base []string, q url.Values) []string {
-	// Copy base to avoid mutating the global slice.
-	outBase := make([]string, len(base))
-	copy(outBase, base)
+// mergeAgents accepts a variable number of 'any' type arguments.
+// It processes the arguments to collect strings:
+// - If an argument is a string, it is split by comma, trimmed, and added.
+// - If an argument is a []string (list of strings), its elements are appended.
+// The function returns a deduplicated list of strings
+func mergeAgents(args ...any) []string {
 
-	// Collect extras from query params.
-	var extras []string
-	if vals, ok := q["agents"]; ok {
-		for _, v := range vals {
-			for _, part := range strings.Split(v, ",") {
-				s := strings.TrimSpace(part)
-				if s != "" {
-					extras = append(extras, s)
+	// 'seen' map tracks elements already added to 'merged'
+	seen := make(map[string]bool)
+
+	for _, arg := range args {
+		if arg == nil {
+			continue // Skip nil arguments
+		}
+
+		// Use reflection to check the type of the argument
+		v := reflect.ValueOf(arg)
+		kind := v.Kind()
+
+		switch kind {
+		case reflect.String:
+			// if its a string, treat it as comma separated
+			s := v.String()
+			for _, part := range strings.Split(s, ",") {
+				trimmed := strings.TrimSpace(part)
+				if trimmed != "" {
+					seen[trimmed] = true
 				}
 			}
+
+		case reflect.Slice:
+			// Case 2: Argument is a slice. Check if it's a []string.
+			if v.Type().Elem().Kind() == reflect.String {
+				// Iterate over the slice elements and append them
+				for i := 0; i < v.Len(); i++ {
+					// v.Index(i).Interface() gets the element as 'any', then cast to string
+					if s, ok := v.Index(i).Interface().(string); ok {
+						trimmed := strings.TrimSpace(s)
+						if trimmed != "" {
+							seen[trimmed] = true
+						}
+					}
+				}
+			}
+		default:
+			continue
 		}
 	}
 
-	if len(extras) == 0 {
-		return outBase
+	merged := make([]string, 0, len(seen)*2)
+	for e := range seen {
+		merged = append(merged, e)
 	}
 
-	// De-duplicate while preserving order: globals first, then extras.
-	seen := make(map[string]struct{}, len(outBase)+len(extras))
-	merged := make([]string, 0, len(outBase)+len(extras))
-	for _, a := range outBase {
-		if _, ok := seen[a]; !ok {
-			seen[a] = struct{}{}
-			merged = append(merged, a)
-		}
-	}
-	for _, e := range extras {
-		if _, ok := seen[e]; !ok {
-			seen[e] = struct{}{}
-			merged = append(merged, e)
-		}
-	}
 	return merged
 }

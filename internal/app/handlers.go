@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
@@ -18,18 +19,13 @@ func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	slog.Debug("query output")
 	for k, v := range q {
-		slog.Debug("chart handler", "key", k, "val", v)
+		slog.Debug("root handler", "key", k, "val", v)
 	}
-	agents := mergeAgents([]string{}, q)
-	slog.Debug("agents after  merge", "a", agents)
-	if len(agents) == 0 {
-		agents = []string{"BURG", "HIVE"}
-	}
-
+	paramAgents := mergeAgents(q.Get("paramAgents"), q.Get("agent"), q.Get("agents"))
 	d := struct {
 		AgentVals string
 	}{
-		AgentVals: strings.Join(agents, ","),
+		AgentVals: strings.Join(paramAgents, ","),
 	}
 	a.t.ExecuteTemplate(w, "index.html", d)
 }
@@ -45,16 +41,10 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	for k, v := range q {
 		slog.Debug("chart handler", "key", k, "val", v)
 	}
-	agents := mergeAgents([]string{}, q)
-	slog.Debug("agents after  merge", "a", agents)
-	if len(agents) == 0 {
-		agents = []string{"BURG", "HIVE"}
-	}
-	slog.Debug("query output")
-	for k, v := range q {
-		slog.Debug("chart handler", "key", k, "val", v)
-	}
+	storageAgents := q.Get("storageAgents")
+	paramAgents := q.Get("paramAgents")
 
+	agents := mergeAgents(storageAgents, paramAgents)
 	var line *charts.Line
 
 	// Read period from query and select chart.
@@ -92,4 +82,44 @@ func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_, _ = w.Write(data)
+}
+
+func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	if a.agentCache.IsCacheEvicted() {
+		slog.Debug("reloading cache")
+		a.agentCache.ReloadData(a.Reset)
+	}
+	type data struct {
+		Name      string
+		IsActive  bool
+		IsChecked bool
+	}
+	d := []data{}
+	agents, err := a.agentCache.GetAllAgents()
+	if err != nil {
+		slog.Error("Error getting agents", "error", err)
+		return
+	}
+	storageAgentsMap := make(map[string]bool)
+	storageAgentsParam := r.URL.Query().Get("storageAgents")
+	for _, i := range strings.Split(storageAgentsParam, ",") {
+		storageAgentsMap[i] = true
+	}
+
+	for agent, active := range agents {
+		_, ok := storageAgentsMap[agent]
+		d = append(d, data{
+			Name:      agent,
+			IsActive:  active,
+			IsChecked: ok,
+		})
+	}
+
+	// sort agents based on the Name field
+	sort.Slice(d, func(i, j int) bool {
+		return d[i].Name < d[j].Name
+	})
+
+	a.t.ExecuteTemplate(w, "agentlist.html", d)
 }
