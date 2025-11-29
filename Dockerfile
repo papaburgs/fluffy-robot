@@ -15,8 +15,7 @@ WORKDIR /go/src/github.com/papaburgs/fluffy-robot
 COPY go.mod go.sum ./
 
 # Copy the rest of the application source code from the specified path
-COPY *.go ./
-COPY *.css ./
+COPY . .
 
 RUN go mod tidy; go mod download
 
@@ -27,8 +26,8 @@ RUN go mod tidy; go mod download
 # CGO_ENABLED=0: Disables CGO, making the binary statically linked and truly independent of the base image.
 RUN CGO_ENABLED=0 GOOS=linux go build -o app -ldflags "-s -w" *.go
 
-# Stage 2: Create the final minimal image
-# We use 'scratch' which is an empty base image, containing only the binary.
+# Create the final minimal image
+# We use 'scratch' which is an empty base image, smaller footprint
 FROM scratch
 
 # Set the working directory in the final image
@@ -36,6 +35,8 @@ WORKDIR /root/
 
 # Copy the compiled executable from the 'builder' stage
 COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/app .
+COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/templates ./templates/
+COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/static ./static/
 # Copy the CA certificates from the builder stage
 # Standard location for many applications to find them
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
