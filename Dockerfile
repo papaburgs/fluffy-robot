@@ -28,7 +28,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o app -ldflags "-s -w" *.go
 
 # Create the final minimal image
 # We use 'scratch' which is an empty base image, smaller footprint
-FROM scratch
+FROM alpine
 
 # Set the working directory in the final image
 WORKDIR /root/
