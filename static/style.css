@@ -180,7 +180,7 @@ nav > div {
 .agent-inactive.agent-selected {
     /* A common, muted style for both states when inactive */
     background-color: #f0f0f0; 
-    color: #ffffff; /* White Text */
+    color: #000000; /* black Text */
     border-color: #1e88e5; /* Blue Border */
 }
 
