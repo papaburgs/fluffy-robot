@@ -16,6 +16,7 @@ func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
 		slog.Debug("reloading cache")
 		a.agentCache.ReloadData(a.Reset)
 	}
+	slog.Info("Incoming request", "endpoint", "index", "remote_ip", r.RemoteAddr)
 	q := r.URL.Query()
 	slog.Debug("query output")
 	for k, v := range q {
@@ -49,6 +50,7 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Read period from query and select chart.
 	period := q.Get("period")
+	slog.Info("Incoming request", "endpoint", "chart", "period", period, "remoteIP", r.RemoteAddr)
 	switch period {
 	case "24h":
 		line = a.Last24CreditChart(agents)

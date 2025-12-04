@@ -13,7 +13,7 @@ import (
 )
 
 // The duration after which the cache will be evicted if not accessed.
-const EvictionDuration = 5 * time.Minute
+const EvictionDuration = 2 * time.Minute
 
 // PublicAgent represents the structure found in the JSON files.
 type PublicAgent struct {
@@ -63,14 +63,6 @@ func NewAgentProcessor(dirPath string) (*AgentProcessor, error) {
 	p := &AgentProcessor{
 		dirPath: dirPath,
 	}
-
-	// Load data synchronously on initialization - skipping this for now, we call reset when we want it
-	// if err := p.loadData(); err != nil {
-	// 	return nil, fmt.Errorf("failed to load initial data: %w", err)
-	// }
-
-	// Start the initial eviction timer
-	//p.resetTimer()
 
 	return p, nil
 }
