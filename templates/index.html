@@ -41,15 +41,44 @@
         </footer>
         <script>
             const AGENT_STORAGE_KEY = 'selected-agents';
+            const CLASS_SELECTED = 'agent-selected';
+            const CLASS_UNSELECTED = 'agent-unselected';
 
-            function saveSelectedAgents() {
-                const checkedAgents = document.querySelectorAll('#agent-form input[name="agent"]:checked');
+            function toggleAgentSelection(agentName) {
+                const agentButton = document.getElementById(`btn-${agentName}`);
 
-                const selectedValues = Array.from(checkedAgents).map(input => input.value);
-                const agentsString = selectedValues.join(',');
-                localStorage.setItem(AGENT_STORAGE_KEY, agentsString);
+                if (!agentButton) {
+                    console.error(`Button for agent ${agentName} not found.`);
+                    return;
+                }
 
-                alert(`Settings saved! Stored value: ${agentsString}`);
+                let selectedAgents = (localStorage.getItem(AGENT_STORAGE_KEY) || '').split(',').filter(Boolean);
+                const agentIndex = selectedAgents.indexOf(agentName);
+                const isCurrentlySelected = agentIndex > -1;
+
+                let newAction; // 'add' or 'remove'
+
+                if (isCurrentlySelected) {
+                    // Agent is currently selected -> REMOVE it
+                    selectedAgents.splice(agentIndex, 1);
+                    newAction = 'remove';
+                } else {
+                    // Agent is NOT selected -> ADD it
+                    selectedAgents.push(agentName);
+                    newAction = 'add';
+                }
+
+                localStorage.setItem(AGENT_STORAGE_KEY, selectedAgents.join(','));
+
+                if (newAction === 'add') {
+                    agentButton.classList.add(CLASS_SELECTED);
+                    agentButton.classList.remove(CLASS_UNSELECTED);
+                } else { // 'remove'
+                    agentButton.classList.add(CLASS_UNSELECTED);
+                    agentButton.classList.remove(CLASS_SELECTED);
+                }
+
+                console.log(`Agent ${agentName} ${newAction}ed. Stored list: ${selectedAgents.join(',')}`);
             }
 
             function getStoredAgentsForHxVals() {
