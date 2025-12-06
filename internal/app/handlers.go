@@ -11,6 +11,7 @@ import (
 )
 
 func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("RootHandler")
 	w.Header().Set("Content-Type", "text/html")
 	if a.agentCache.IsCacheEvicted() {
 		slog.Debug("reloading cache")
@@ -32,6 +33,7 @@ func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("LoadChartHandler")
 	if a.agentCache.IsCacheEvicted() {
 		slog.Debug("reloading cache")
 		a.agentCache.ReloadData(a.Reset)
@@ -68,14 +70,17 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) AgentsHandler(w http.ResponseWriter, r *http.Request) {
-	a.t.ExecuteTemplate(w, "agents.html", nil)
+	slog.Debug("AgentsHandler")
+	a.t.ExecuteTemplate(w, "agentlistpage.html", nil)
 }
 
 func (a *App) HeaderHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("HeaderHandler")
 	a.t.ExecuteTemplate(w, "header.html", nil)
 }
 
 func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("ExportHandler")
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", `attachment; filename="backup.json"`)
 	data, err := json.Marshal(a)
@@ -87,6 +92,7 @@ func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("AgentListHandler")
 	w.Header().Set("Content-Type", "application/json")
 	if a.agentCache.IsCacheEvicted() {
 		slog.Debug("reloading cache")
@@ -103,6 +109,8 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 		slog.Error("Error getting agents", "error", err)
 		return
 	}
+	searchStr := strings.ToLower(r.URL.Query().Get("agentSearch"))
+	slog.Debug("search", "agentSearch", searchStr)
 	storageAgentsMap := make(map[string]bool)
 	storageAgentsParam := r.URL.Query().Get("storageAgents")
 	for _, i := range strings.Split(storageAgentsParam, ",") {
@@ -111,11 +119,13 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 
 	for agent, active := range agents {
 		_, ok := storageAgentsMap[agent]
-		d = append(d, data{
-			Name:      agent,
-			IsActive:  active,
-			IsChecked: ok,
-		})
+		if searchStr == "" || strings.Contains(strings.ToLower(agent), searchStr) {
+			d = append(d, data{
+				Name:      agent,
+				IsActive:  active,
+				IsChecked: ok,
+			})
+		}
 	}
 
 	// sort agents based on the Name field

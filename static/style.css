@@ -126,19 +126,24 @@ nav > div {
     margin-top: 30px;
     border-top: 1px solid #333; /* Darker border */
     padding-top: 15px;
+      flex: 1 1 100px; 
+  /* Also consider setting a min-width for very small screens */
+  min-width: 80px; 
+  text-align: center;
 }
 
 /* --- BASE STYLES & INTERACTIVITY --- */
 
 /* Base styling for all buttons */
 .agent-button {
-    padding: 10px 20px;
+    padding: 20px 30px;
     border-radius: 20px; 
     transition: all 0.2s ease-in-out; 
     font-weight: bold;
     text-transform: uppercase;
     cursor: pointer;
     border: 3px solid; /* Defined by the state classes below */
+    margin: 20px
 }
 
 /* 1. Active State (Agent is available) */
@@ -148,28 +153,21 @@ nav > div {
     pointer-events: auto;
 }
 
-/* 2. Inactive State (Agent is disabled) */
 .agent-inactive {
     /* Dim the button to show it's disabled */
     opacity: 0.5; 
 }
 
-
-/* --- SELECTION STYLES (Color Scheme) --- */
-
-/* 3. Unselected State (Blue text on Gray background) */
 .agent-active.agent-unselected {
     background-color: #e0e0e0; /* Light Gray */
     color: #1e88e5; /* Blue Text */
     border-color: #1e88e5; /* Blue Border */
 }
 
-/* Hover for Active Unselected */
 .agent-active.agent-unselected:hover {
     background-color: #bdbdbd; /* Slightly darker gray on hover */
 }
 
-/* 4. Selected State (White text on Blue background) */
 .agent-active.agent-selected {
     background-color: #1e88e5; /* Blue Background */
     color: #ffffff; /* White Text */
@@ -178,17 +176,43 @@ nav > div {
 
 /* Inactive (Disabled) State Styling */
 .agent-inactive.agent-selected {
-    /* A common, muted style for both states when inactive */
     background-color: #f0f0f0; 
     color: #000000; /* black Text */
     border-color: #1e88e5; /* Blue Border */
 }
 
 .agent-inactive.agent-unselected {
-    /* A common, muted style for both states when inactive */
     background-color: #f0f0f0; 
-    color: #9e9e9e; /* Gray text */
+    color: #9e9e9e;
     border-color: #cccccc; 
 }
 
+footer {
+    background: #1F3C88;
+    color: #FFFFFF;
+    padding: 15px 20px;
+    font-size: 1em; 
+    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.2); 
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 15px; 
+}
 
+.footer-links {
+    display: flex;
+    gap: 20px; 
+    align-items: center;
+}
+
+.footer-links a {
+    color: #FFFFFF;
+    text-decoration: none; 
+    font-weight: bold;
+    transition: color 0.3s; 
+}
+
+.footer-links a:hover {
+    color: #C0C0C0; 
+    text-decoration: underline;
+}

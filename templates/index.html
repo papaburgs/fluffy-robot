@@ -24,21 +24,25 @@
                         <button class="time-button" hx-get="/chart" hx-vals='{"period":"7d"}'  hx-target="#chart-content">Last 7d</button>
                     </span>
                     <span>
-                        <button class="config-button" hx-get="/agentlist" hx-target="#chart-content" aria-label="Configuration">&#x2699;</button>
+                        <button class="config-button" hx-get="/agents" hx-target="#chart-content" aria-label="Configuration">&#x2699;</button>
                     </span>
                 </div>
             </div>
         </nav>
 
         <main>   
-            <h2>Chart Visualization</h2>
             <div id="chart-content">
                 Click a filter button to load a chart.
             </div>
         </main>
-        <footer>
-            This will be a small about page, maybe a link to github and railway
-        </footer>
+<footer>
+    <p>Spacetraders Credit Report - 2025</p>
+    <div class="footer-links">
+        <a href="https://github.com/papaburgs/fluffy-robot" target="_blank" rel="noopener noreferrer">GitHub</a>
+        <a href="https://railway.com?referralCode=-I-osp" target="_blank" rel="noopener noreferrer">Hosted on Railway</a>
+        <a href="/documentation">Documentation/About</a>
+    </div>
+</footer>
         <script>
             const AGENT_STORAGE_KEY = 'selected-agents';
             const CLASS_SELECTED = 'agent-selected';

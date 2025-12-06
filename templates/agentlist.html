@@ -1,5 +1,3 @@
-<form id="agent-form">
-    <h3>Available Agents</h3>
     {{range .}}
     <button id="btn-{{.Name}}" 
         type="button"
@@ -7,6 +5,5 @@
         onclick="toggleAgentSelection('{{.Name}}')"
         >{{.Name}}
     </button>
-        {{end}}
-</form>
+    {{end}}
 
