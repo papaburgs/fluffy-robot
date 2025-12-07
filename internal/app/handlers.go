@@ -113,6 +113,7 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("search", "agentSearch", searchStr)
 	storageAgentsMap := make(map[string]bool)
 	storageAgentsParam := r.URL.Query().Get("storageAgents")
+	slog.Debug("stored agents", "agents", storageAgentsParam)
 	for _, i := range strings.Split(storageAgentsParam, ",") {
 		storageAgentsMap[i] = true
 	}
@@ -120,6 +121,7 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 	for agent, active := range agents {
 		_, ok := storageAgentsMap[agent]
 		if searchStr == "" || strings.Contains(strings.ToLower(agent), searchStr) {
+			slog.Debug("adding", "name", agent, "checked", ok)
 			d = append(d, data{
 				Name:      agent,
 				IsActive:  active,
