@@ -121,7 +121,7 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 	for agent, active := range agents {
 		_, ok := storageAgentsMap[agent]
 		if searchStr == "" || strings.Contains(strings.ToLower(agent), searchStr) {
-			slog.Debug("adding", "name", agent, "checked", ok)
+			// slog.Debug("adding", "name", agent, "checked", ok)
 			d = append(d, data{
 				Name:      agent,
 				IsActive:  active,
