@@ -38,10 +38,7 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
+		hist, err := a.GetAgentRecordsFromCSV(p, 24*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records", "error", err)
 			continue
@@ -82,10 +79,7 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
+		hist, err := a.GetAgentRecordsFromCSV(p, 4*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records", "error", err)
 			continue
@@ -127,10 +121,7 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
+		hist, err := a.GetAgentRecordsFromCSV(p, 1*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records", "error", err)
 			continue
@@ -176,10 +167,7 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	}
 
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
+		hist, err := a.GetAgentRecordsFromCSV(p, 7*24*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records", "error", err)
 			continue

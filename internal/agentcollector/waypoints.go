@@ -43,11 +43,11 @@ type SystemResponse struct {
 
 // fetchAndCacheWaypoints processes a list of PublicAgents, determines their home system,
 // and fetches/caches the system's waypoints, skipping the API call if cached.
-func fetchAndCacheWaypoints(ctx context.Context, gate *gate.Gate, basePath string, systemName string) ([]SystemWaypoint, error) {
+func (c *collector) fetchAndCacheWaypoints(ctx context.Context, gate *gate.Gate, basePath string, systemName string) ([]SystemWaypoint, error) {
 	const subDir = "waypoints"
 
 	// Define Cache File Path
-	cacheDir := filepath.Join(basePath, "reset-"+getResetDate(basePath), subDir)
+	cacheDir := filepath.Join(basePath, "reset-"+c.CurrentReset)
 	cacheFilePath := filepath.Join(cacheDir, systemName)
 
 	// Check Cache
