@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/gate"
@@ -310,6 +311,35 @@ func updateJumpgateLists(ctx context.Context, basePath string, allAgents []Publi
 	err = os.WriteFile(filename, data, 0644)
 	if err != nil {
 		slog.Error("error writing jumpgate agents file", "filename", filename, "error", err)
+	}
+	return
+}
+
+func markJumpgateComplete(ctx context.Context, basePath string, system string) {
+	var (
+		err  error
+		data []byte
+	)
+	if ctx.Err() != nil {
+		slog.Warn("context closed, return")
+		return
+	}
+	filename := filepath.Join(basePath, "reset-"+getResetDate(basePath), fnJumpgateAgents)
+	currentFileContents := loadJumpgateAgentsFile(ctx, filename)
+
+	for _, agent := range currentFileContents.AgentsToCheck {
+		if strings.Contains(agent.Headquarters, system) {
+			currentFileContents.AgentsToIgnore = append(currentFileContents.AgentsToIgnore, agent)
+		}
+	}
+	data, err = json.Marshal(currentFileContents)
+	if err != nil {
+		slog.Error("error marshalling jumpgate agents data", "error", err)
+		return
+	}
+	err = os.WriteFile(filename, data, 0644)
+	if err != nil {
+		slog.Error("error writing jumpgate agents file in marking it complete", "filename", filename, "error", err)
 	}
 	return
 }

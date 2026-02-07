@@ -161,6 +161,10 @@ func updateJumpgateConstruction(ctx context.Context, gate *gate.Gate, basePath s
 			WaypointSymbol: waypointSymbol,
 			Status:         status,
 		})
+		if status.IsComplete {
+			markJumpgateComplete(ctx, basePath, systemSymbol)
+		}
+
 	}
 
 	// Save Final Results

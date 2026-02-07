@@ -41,16 +41,6 @@ type SystemResponse struct {
 
 // --- Main Logic Function ---
 
-// hq := agent.Headquarters
-// if len(hq) < 3 {
-// 	slog.Debug("Skipping agent due to short Headquarters symbol",
-// 		slog.String("agent", agent.Symbol),
-// 		slog.String("headquarters", hq))
-// 	continue
-// }
-// // The system name is the Headquarters symbol minus the last 3 characters. Assuming they are all `-A1`
-// systemName := hq[:len(hq)-3]
-
 // fetchAndCacheWaypoints processes a list of PublicAgents, determines their home system,
 // and fetches/caches the system's waypoints, skipping the API call if cached.
 func fetchAndCacheWaypoints(ctx context.Context, gate *gate.Gate, basePath string, systemName string) ([]SystemWaypoint, error) {
