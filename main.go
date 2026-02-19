@@ -12,6 +12,7 @@ import (
 	_ "embed"
 
 	"github.com/papaburgs/fluffy-robot/internal/app"
+	"github.com/papaburgs/fluffy-robot/internal/db"
 )
 
 //go:embed static
@@ -54,6 +55,18 @@ func main() {
 	l := slog.New(h)
 	slog.SetDefault(l)
 
+	database, err := db.Connect()
+	if err != nil {
+		l.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer database.Close()
+
+	if err := db.InitSchema(database); err != nil {
+		l.Error("failed to initialize schema", "error", err)
+		os.Exit(1)
+	}
+
 	////////// Static file handling \\\\\\\\\\
 	// define this value to be something in order to use the 'external' css to make it easier to work on
 	// leaving it unset will embed the directory instead to make it easier for a server
@@ -73,7 +86,7 @@ func main() {
 	}
 	slog.Debug("storage location:", "base", storageLocation)
 
-	a := app.NewApp(storageLocation, collectionsEnabled())
+	a := app.NewApp(storageLocation, collectionsEnabled(), database)
 	l.Info("starting fluffy robot", "version", "2.0.0")
 
 	http.HandleFunc("/", a.RootHandler)

@@ -93,10 +93,14 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 		IsChecked bool
 	}
 	d := []data{}
-	agents, err := a.GetAllAgentsFromCSV()
+	agents, err := a.GetAllAgentsFromDB()
 	if err != nil {
-		slog.Error("Error getting agents", "error", err)
-		return
+		slog.Error("Error getting agents from DB, trying CSV", "error", err)
+		agents, err = a.GetAllAgentsFromCSV()
+		if err != nil {
+			slog.Error("Error getting agents from CSV", "error", err)
+			return
+		}
 	}
 	searchStr := strings.ToLower(r.URL.Query().Get("agentSearch"))
 	slog.Debug("search", "agentSearch", searchStr)

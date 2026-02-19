@@ -2,7 +2,9 @@ package app
 
 import (
 	"context"
+	"database/sql"
 	"encoding/csv"
+	"fmt"
 	"html/template"
 	"io" // Added this import
 	"log/slog"
@@ -13,32 +15,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/papaburgs/fluffy-robot/internal/agentcollector"
+	"github.com/papaburgs/fluffy-robot/internal/collector"
+	"github.com/papaburgs/fluffy-robot/internal/types"
 )
-
-type AgentRecord struct {
-	Timestamp time.Time
-	ShipCount int
-	Credits   int
-}
-
-type PublicAgent struct {
-	// Credits The number of credits the agent has available. Credits can be negative if funds have been overdrawn.
-	Credits int64 `json:"credits"`
-	// Headquarters The headquarters of the agent.
-	Headquarters string `json:"headquarters"`
-	// ShipCount How many ships are owned by the agent.
-	ShipCount int `json:"shipCount"`
-	// StartingFaction The faction the agent started with.
-	StartingFaction string `json:"startingFaction"`
-	// Symbol Symbol of the agent.
-	Symbol string `json:"symbol"`
-}
-
-type JumpGateAgentListStruct struct {
-	AgentsToCheck  []PublicAgent `json:"agents_to_check"`
-	AgentsToIgnore []PublicAgent `json:"agents_to_ignore"`
-}
 
 // CSVAgentRecord represents a single row parsed from the agents.csv file.
 type CSVAgentRecord struct {
@@ -51,8 +30,8 @@ type CSVAgentRecord struct {
 
 // GetAgentRecordsFromCSV reads the agents.csv file for the current reset and returns
 // filtered records for a given symbol and duration.
-func (a *App) GetAgentRecordsFromCSV(symbol string, duration time.Duration) ([]AgentRecord, error) {
-	records := []AgentRecord{}
+func (a *App) GetAgentRecordsFromCSV(symbol string, duration time.Duration) ([]types.AgentRecord, error) {
+	records := []types.AgentRecord{}
 	csvFilePath := filepath.Join(a.StorageRoot, "reset-"+a.Reset, "agents.csv")
 
 	file, err := os.Open(csvFilePath)
@@ -117,9 +96,9 @@ func (a *App) GetAgentRecordsFromCSV(symbol string, duration time.Duration) ([]A
 			continue
 		}
 
-		records = append(records, AgentRecord{
+		records = append(records, types.AgentRecord{
 			Timestamp: recordTime,
-			Credits:   csvRecord.Credits,
+			Credits:   int(csvRecord.Credits),
 			ShipCount: csvRecord.ShipCount,
 		})
 	}
@@ -193,6 +172,52 @@ func (a *App) GetAllAgentsFromCSV() (map[string]bool, error) {
 	return res, nil
 }
 
+// GetAgentRecordsFromDB reads agent history from Turso DB.
+func (a *App) GetAgentRecordsFromDB(symbol string, duration time.Duration) ([]types.AgentRecord, error) {
+	records := []types.AgentRecord{}
+	startTime := time.Now().Add(-duration).Unix()
+
+	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agent_history WHERE symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", symbol, startTime)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query agent history: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var ts int64
+		var ships, credits int
+		if err := rows.Scan(&ts, &ships, &credits); err != nil {
+			continue
+		}
+		records = append(records, types.AgentRecord{
+			Timestamp: time.Unix(ts, 0).UTC(),
+			ShipCount: ships,
+			Credits:   credits,
+		})
+	}
+	return records, nil
+}
+
+// GetAllAgentsFromDB returns all agents and their active status from Turso DB.
+func (a *App) GetAllAgentsFromDB() (map[string]bool, error) {
+	res := make(map[string]bool)
+	rows, err := a.DB.Query("SELECT symbol, credits FROM agents WHERE reset = ?", a.Reset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query agents: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var symbol string
+		var credits int64
+		if err := rows.Scan(&symbol, &credits); err != nil {
+			continue
+		}
+		res[symbol] = (credits != 175000)
+	}
+	return res, nil
+}
+
 // App is our main application
 // it holds some
 type App struct {
@@ -201,20 +226,21 @@ type App struct {
 	Reset string
 	// collectPointsPerHour is used to change the charts density
 	collectPointsPerHour int
-	JumpGateAgents       JumpGateAgentListStruct // New field for in-memory jumpgate agent lists
+	JumpGateAgents       types.JumpGateAgentListStruct // New field for in-memory jumpgate agent lists
 	t                    *template.Template
+	DB                   *sql.DB
 }
 
 // NewApp starts the collector is collect is true
 // it returns an app that contains all the handlers
 // for the ui
-func NewApp(storage string, collect bool) *App {
+func NewApp(storage string, collect bool, db *sql.DB) *App {
 	var collectEvery = 5
-	)
 	a := App{
 		StorageRoot:          storage,
 		Reset:                "00000",
 		collectPointsPerHour: 60 / collectEvery,
+		DB:                   db,
 	}
 	a.t = template.Must(template.ParseGlob("templates/*.html"))
 	ctx := context.Background()
@@ -222,11 +248,12 @@ func NewApp(storage string, collect bool) *App {
 	// so it can report what the current reset is.
 	// Not sure I like it.
 	resetChan := make(chan string)
-	jumpGateListUpdateChan := make(chan JumpGateAgentListStruct)
+	jumpGateListUpdateChan := make(chan types.JumpGateAgentListStruct)
 	if collect {
-		go agentcollector.Init(ctx, "https://api.spacetraders.io/v2", a.StorageRoot, collectEvery, resetChan, jumpGateListUpdateChan, a.JumpGateAgents)
+		c := collector.New(a.DB, "https://api.spacetraders.io/v2", resetChan, jumpGateListUpdateChan)
+		go c.Run(ctx, time.Duration(collectEvery)*time.Minute)
 	}
-	go func(c chan JumpGateAgentListStruct) {
+	go func(c chan types.JumpGateAgentListStruct) {
 		for {
 			a.JumpGateAgents = <-c
 			slog.Debug("got new JumpGateAgents list", "agents_to_check", len(a.JumpGateAgents.AgentsToCheck))
