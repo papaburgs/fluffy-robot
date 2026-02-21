@@ -1,7 +1,6 @@
 package app
 
 import (
-	"context"
 	"database/sql"
 	"encoding/csv"
 	"fmt"
@@ -15,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/papaburgs/fluffy-robot/internal/collector"
 	"github.com/papaburgs/fluffy-robot/internal/types"
 )
 
@@ -177,7 +175,7 @@ func (a *App) GetAgentRecordsFromDB(symbol string, duration time.Duration) ([]ty
 	records := []types.AgentRecord{}
 	startTime := time.Now().Add(-duration).Unix()
 
-	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agent WHERE symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", symbol, startTime)
+	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agents WHERE symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", symbol, startTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query agent history: %w", err)
 	}
@@ -201,7 +199,16 @@ func (a *App) GetAgentRecordsFromDB(symbol string, duration time.Duration) ([]ty
 // GetAllAgentsFromDB returns all agents and their active status from Turso DB.
 func (a *App) GetAllAgentsFromDB() (map[string]bool, error) {
 	res := make(map[string]bool)
-	rows, err := a.DB.Query("SELECT symbol, credits FROM agents WHERE reset = ?", a.Reset)
+	rows, err := a.DB.Query(`
+		SELECT symbol, credits 
+		FROM agents 
+		WHERE (symbol, timestamp) IN (
+			SELECT symbol, MAX(timestamp) 
+			FROM agents 
+			WHERE reset = ? 
+			GROUP BY symbol
+		)
+	`, a.Reset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query agents: %w", err)
 	}
@@ -242,29 +249,19 @@ func NewApp(storage string, collect bool, db *sql.DB) *App {
 		collectPointsPerHour: 60 / collectEvery,
 		DB:                   db,
 	}
-	a.t = template.Must(template.ParseGlob("templates/*.html"))
-	ctx := context.Background()
-	// resetChan is passed all they way down to the sererstatus call
-	// so it can report what the current reset is.
-	// Not sure I like it.
-	resetChan := make(chan string)
-	jumpGateListUpdateChan := make(chan types.JumpGateAgentListStruct)
-	if collect {
-		c := collector.New(a.DB, "https://api.spacetraders.io/v2", resetChan, jumpGateListUpdateChan)
-		go c.Run(ctx, time.Duration(collectEvery)*time.Minute)
-	}
-	go func(c chan types.JumpGateAgentListStruct) {
-		for {
-			a.JumpGateAgents = <-c
-			slog.Debug("got new JumpGateAgents list", "agents_to_check", len(a.JumpGateAgents.AgentsToCheck))
-		}
-	}(jumpGateListUpdateChan)
-	go func(c chan string) {
-		for {
-			a.Reset = <-c
-			slog.Debug("got new reset", "date", a.Reset)
-		}
-	}(resetChan)
+	a.t = template.Must(template.ParseGlob("cmd/gui/templates/*.html"))
+	// go func(c chan types.JumpGateAgentListStruct) {
+	// 	for {
+	// 		a.JumpGateAgents = <-c
+	// 		slog.Debug("got new JumpGateAgents list", "agents_to_check", len(a.JumpGateAgents.AgentsToCheck))
+	// 	}
+	// }(jumpGateListUpdateChan)
+	// go func(c chan string) {
+	// 	for {
+	// 		a.Reset = <-c
+	// 		slog.Debug("got new reset", "date", a.Reset)
+	// 	}
+	// }(resetChan)
 	return &a
 }
 

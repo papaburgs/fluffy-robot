@@ -24,7 +24,7 @@ This holds the main data we use
 | :--- | :--- | :--- |
 | timestamp | Integer | timestamp in unix epoche time |
 | reset | text | Identifier of which session we are in - format is "2006-01-02"|
-| symbol | TEXT (PK) | Unique agent identifier |
+| symbol | TEXT  | agent identifier |
 | ships | integer | count of ships agent has |
 | faction | TEXT | Starting faction |
 | credits | INTEGER | Current credit balance |

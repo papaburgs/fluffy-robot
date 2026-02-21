@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"strings"
 
 	"log/slog"
 
@@ -35,35 +34,16 @@ func collectionsEnabled() bool {
 }
 
 func main() {
-	h := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	if logl, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_LOG_LEVEL"); !ok {
-		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	} else {
-		switch strings.ToLower(logl) {
-		case "debug", "dbg":
-			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-		case "warn", "wrn":
-			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn})
-		case "error", "err":
-			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError})
-		default:
-			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
-		}
-	}
-
-	// Create a new text handler that writes to the log file.
-	l := slog.New(h)
-	slog.SetDefault(l)
 
 	database, err := db.Connect()
 	if err != nil {
-		l.Error("failed to connect to database", "error", err)
+		slog.Error("failed to connect to database", "error", err)
 		os.Exit(1)
 	}
 	defer database.Close()
 
 	if err := db.InitSchema(database); err != nil {
-		l.Error("failed to initialize schema", "error", err)
+		slog.Error("failed to initialize schema", "error", err)
 		os.Exit(1)
 	}
 
@@ -72,7 +52,7 @@ func main() {
 	// leaving it unset will embed the directory instead to make it easier for a server
 	if _, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_STATIC_DEV"); ok {
 		// Dev case
-		fs := http.FileServer(http.Dir("./static"))
+		fs := http.FileServer(http.Dir("./cmd/gui/static"))
 		http.Handle("/static/", http.StripPrefix("/static/", fs))
 	} else {
 		// production case
@@ -87,7 +67,7 @@ func main() {
 	slog.Debug("storage location:", "base", storageLocation)
 
 	a := app.NewApp(storageLocation, collectionsEnabled(), database)
-	l.Info("starting fluffy robot", "version", "3.0.0")
+	slog.Info("starting fluffy robot", "version", "3.0.0")
 
 	http.HandleFunc("/", a.RootHandler)
 	http.HandleFunc("/export", a.ExportHandler)
@@ -97,6 +77,6 @@ func main() {
 	http.HandleFunc("/agentlist", a.AgentListHandler)
 
 	// Start the web server and listen on port 8845.
-	l.Info("Starting server on http://localhost:8845")
-	l.Warn("Server Done", "Error", http.ListenAndServe(":8845", nil))
+	slog.Info("Starting server on http://localhost:8845")
+	slog.Warn("Server Done", "Error", http.ListenAndServe(":8845", nil))
 }

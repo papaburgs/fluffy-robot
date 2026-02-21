@@ -11,16 +11,17 @@ import (
 
 // Connect establishes a connection to the Turso/libSQL database.
 func Connect() (*sql.DB, error) {
-	url := os.Getenv("TURSO_URL")
+	url := os.Getenv("FLUFFY_TURSO_URL")
 	if url == "" {
-		return nil, fmt.Errorf("TURSO_URL environment variable is not set")
+		return nil, fmt.Errorf("FLUFFY_TURSO_URL environment variable is not set")
 	}
 
-	token := os.Getenv("TURSO_AUTH_TOKEN")
+	token := os.Getenv("FLUFFY_TURSO_AUTH_TOKEN")
 	if token != "" {
 		url = fmt.Sprintf("%s?authToken=%s", url, token)
 	} else {
-		slog.Error("TURSO_AUTH_TOKEN needs to be set")
+		slog.Error("FLUFFY_TURSO_AUTH_TOKEN needs to be set")
+		return nil, fmt.Errorf("FLUFFY_TURSO_AUTH_TOKEN environment variable is not set")
 	}
 
 	db, err := sql.Open("libsql", url)
@@ -43,11 +44,12 @@ func InitSchema(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS agents (
 			timestamp INTEGER,
 			reset TEXT,
-			symbol TEXT PRIMARY KEY,
+			symbol TEXT,
 			ships INTEGER,
 			faction TEXT,
 			credits INTEGER,
-			headquarters TEXT
+			headquarters TEXT,
+			PRIMARY KEY (timestamp, symbol)
 		)`,
 		// Leaderboard table: symbol cannot be PK if it's history.
 		// Using (timestamp, symbol, type) as composite PK for uniqueness of record.

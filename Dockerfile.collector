@@ -24,19 +24,19 @@ RUN go mod tidy; go mod download
 # -o app: Specifies the output executable name as 'app'.
 # -ldflags "-s -w": Reduces the size of the binary by stripping debug information and symbol tables.
 # CGO_ENABLED=0: Disables CGO, making the binary statically linked and truly independent of the base image.
-RUN CGO_ENABLED=0 GOOS=linux go build -o app -ldflags "-s -w" *.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o app -ldflags "-s -w" cmd/collect/main.go
 
 # Create the final minimal image
 # We use 'scratch' which is an empty base image, smaller footprint
-FROM alpine
+FROM docker.io/library/alpine:latest
 
 # Set the working directory in the final image
 WORKDIR /root/
 
 # Copy the compiled executable from the 'builder' stage
 COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/app .
-COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/templates ./templates/
-COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/static ./static/
+# COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/templates ./templates/
+# COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/static ./static/
 # Copy the CA certificates from the builder stage
 # Standard location for many applications to find them
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
