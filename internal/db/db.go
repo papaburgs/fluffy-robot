@@ -19,6 +19,8 @@ func Connect() (*sql.DB, error) {
 	token := os.Getenv("TURSO_AUTH_TOKEN")
 	if token != "" {
 		url = fmt.Sprintf("%s?authToken=%s", url, token)
+	} else {
+		slog.Error("TURSO_AUTH_TOKEN needs to be set")
 	}
 
 	db, err := sql.Open("libsql", url)
@@ -47,15 +49,7 @@ func InitSchema(db *sql.DB) error {
 			credits INTEGER,
 			headquarters TEXT
 		)`,
-		`CREATE TABLE IF NOT EXISTS agent_history (
-			timestamp INTEGER,
-			reset TEXT,
-			symbol TEXT,
-			ships INTEGER,
-			credits INTEGER,
-			PRIMARY KEY (timestamp, symbol)
-		)`,
-		// Leaderboard table: symbol cannot be PK if it's history. 
+		// Leaderboard table: symbol cannot be PK if it's history.
 		// Using (timestamp, symbol, type) as composite PK for uniqueness of record.
 		`CREATE TABLE IF NOT EXISTS leaderboard (
 			timestamp INTEGER,

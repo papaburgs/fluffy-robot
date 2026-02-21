@@ -87,7 +87,7 @@ func main() {
 	slog.Debug("storage location:", "base", storageLocation)
 
 	a := app.NewApp(storageLocation, collectionsEnabled(), database)
-	l.Info("starting fluffy robot", "version", "2.0.0")
+	l.Info("starting fluffy robot", "version", "3.0.0")
 
 	http.HandleFunc("/", a.RootHandler)
 	http.HandleFunc("/export", a.ExportHandler)

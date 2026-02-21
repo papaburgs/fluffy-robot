@@ -177,7 +177,7 @@ func (a *App) GetAgentRecordsFromDB(symbol string, duration time.Duration) ([]ty
 	records := []types.AgentRecord{}
 	startTime := time.Now().Add(-duration).Unix()
 
-	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agent_history WHERE symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", symbol, startTime)
+	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agent WHERE symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", symbol, startTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query agent history: %w", err)
 	}

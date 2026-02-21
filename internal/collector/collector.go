@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"time"
@@ -13,6 +14,11 @@ import (
 	"github.com/papaburgs/fluffy-robot/internal/types"
 )
 
+type HTTPResponse struct {
+	Bytes      []byte
+	StatusCode int
+}
+
 type Collector struct {
 	db                     *sql.DB
 	baseURL                string
@@ -20,6 +26,9 @@ type Collector struct {
 	reset                  string
 	resetChan              chan string
 	jumpGateListUpdateChan chan types.JumpGateAgentListStruct
+	currentTimestamp       int64
+	apiCalls               int
+	ingestStart            time.Time
 }
 
 func New(db *sql.DB, baseURL string, resetChan chan string, jumpGateListUpdateChan chan types.JumpGateAgentListStruct) *Collector {
@@ -52,6 +61,9 @@ func (c *Collector) Run(ctx context.Context, interval time.Duration) {
 func (c *Collector) Ingest(ctx context.Context) {
 	slog.Info("starting data ingestion")
 
+	c.currentTimestamp = time.Now().Unix()
+	c.apiCalls = 0
+	c.ingestStart = time.Now()
 	// 1. Call status/health endpoint
 	if err := c.updateStatus(ctx); err != nil {
 		slog.Error("failed to update status", "error", err)
@@ -68,7 +80,7 @@ func (c *Collector) Ingest(ctx context.Context) {
 		slog.Error("failed to update jumpgates", "error", err)
 	}
 
-	slog.Info("data ingestion completed")
+	slog.Info("data ingestion completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
 }
 
 func (c *Collector) updateJumpgates(ctx context.Context) error {
@@ -102,7 +114,7 @@ func (c *Collector) updateJumpgates(ctx context.Context) error {
 		var jumpgateSymbol string
 		var complete int64
 		err := c.db.QueryRowContext(ctx, "SELECT jumpgate, complete FROM jumpgates WHERE reset = ? AND system = ?", c.reset, system).Scan(&jumpgateSymbol, &complete)
-		
+
 		if err == sql.ErrNoRows {
 			// Need to find jumpgate symbol for this system
 			slog.Debug("finding jumpgate for system", "system", system)
@@ -148,14 +160,14 @@ func (c *Collector) updateJumpgates(ctx context.Context) error {
 			_, err = c.db.ExecContext(ctx, `
 				INSERT INTO construction (reset, timestamp, jumpgate, fabmat, advcct)
 				VALUES (?, ?, ?, ?, ?)
-			`, c.reset, time.Now().Unix(), jumpgateSymbol, fabmat, advcct)
+			`, c.reset, c.currentTimestamp, jumpgateSymbol, fabmat, advcct)
 			if err != nil {
 				slog.Error("failed to insert construction record", "jumpgate", jumpgateSymbol, "error", err)
 			}
 
 			// If complete, update jumpgates table
 			if status.IsComplete {
-				_, err = c.db.ExecContext(ctx, "UPDATE jumpgates SET complete = ? WHERE reset = ? AND jumpgate = ?", time.Now().Unix(), c.reset, jumpgateSymbol)
+				_, err = c.db.ExecContext(ctx, "UPDATE jumpgates SET complete = ? WHERE reset = ? AND jumpgate = ?", c.currentTimestamp, c.reset, jumpgateSymbol)
 				if err != nil {
 					slog.Error("failed to update jumpgate completion", "jumpgate", jumpgateSymbol, "error", err)
 				}
@@ -168,21 +180,9 @@ func (c *Collector) updateJumpgates(ctx context.Context) error {
 
 func (c *Collector) findJumpgateSymbol(ctx context.Context, systemSymbol string) (string, error) {
 	url := fmt.Sprintf("%s/systems/%s", c.baseURL, systemSymbol)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	resp, err := c.doGET(ctx, url)
 	if err != nil {
 		return "", err
-	}
-
-	c.gate.Latch(ctx)
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("api returned %d", resp.StatusCode)
 	}
 
 	var systemResponse struct {
@@ -193,7 +193,7 @@ func (c *Collector) findJumpgateSymbol(ctx context.Context, systemSymbol string)
 			} `json:"waypoints"`
 		} `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&systemResponse); err != nil {
+	if err := json.Unmarshal(resp.Bytes, &systemResponse); err != nil {
 		return "", err
 	}
 
@@ -220,27 +220,15 @@ type ConstructionStatus struct {
 
 func (c *Collector) fetchConstructionStatus(ctx context.Context, systemSymbol, jumpgateSymbol string) (ConstructionStatus, error) {
 	url := fmt.Sprintf("%s/systems/%s/waypoints/%s/construction", c.baseURL, systemSymbol, jumpgateSymbol)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	resp, err := c.doGET(ctx, url)
 	if err != nil {
 		return ConstructionStatus{}, err
-	}
-
-	c.gate.Latch(ctx)
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return ConstructionStatus{}, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return ConstructionStatus{}, fmt.Errorf("api returned %d", resp.StatusCode)
 	}
 
 	var response struct {
 		Data ConstructionStatus `json:"data"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+	if err := json.Unmarshal(resp.Bytes, &response); err != nil {
 		return ConstructionStatus{}, err
 	}
 
@@ -249,26 +237,14 @@ func (c *Collector) fetchConstructionStatus(ctx context.Context, systemSymbol, j
 
 func (c *Collector) updateStatus(ctx context.Context) error {
 	slog.Debug("updating server status")
-	
-	client := &http.Client{Timeout: 10 * time.Second}
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/", nil)
+
+	resp, err := c.doGET(ctx, c.baseURL+"/")
 	if err != nil {
 		return err
-	}
-
-	c.gate.Latch(ctx)
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("status endpoint returned %d", resp.StatusCode)
 	}
 
 	var status ResponseStatus
-	if err := json.NewDecoder(resp.Body).Decode(&status); err != nil {
+	if err := json.Unmarshal(resp.Bytes, &status); err != nil {
 		return err
 	}
 
@@ -293,7 +269,7 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 			nextReset = excluded.nextReset
 	`,
 		status.ResetDate,
-		time.Now(), // Using now for marketUpdate as placeholder or parse from response if available
+		status.Health.LastMarketUpdate,
 		status.Stats.Agents,
 		status.Stats.Accounts,
 		status.Stats.Ships,
@@ -308,7 +284,7 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 	}
 
 	// Update leaderboard table
-	timestamp := time.Now().Unix()
+	timestamp := c.currentTimestamp
 	for _, l := range status.Leaderboards.MostCredits {
 		_, err = c.db.ExecContext(ctx, `
 			INSERT INTO leaderboard (timestamp, reset, count, symbol, type)
@@ -336,36 +312,22 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 
 func (c *Collector) updateAgents(ctx context.Context) error {
 	slog.Debug("updating agents")
-	
+
 	page := 1
 	perPage := 20
-	timestamp := time.Now().Unix()
+	timestamp := c.currentTimestamp
 
 	for {
 		url := fmt.Sprintf("%s/agents?limit=%d&page=%d", c.baseURL, perPage, page)
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		resp, err := c.doGET(ctx, url)
 		if err != nil {
 			return err
-		}
-
-		c.gate.Latch(ctx)
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			return err
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			resp.Body.Close()
-			return fmt.Errorf("agents endpoint returned %d", resp.StatusCode)
 		}
 
 		var data ResponseAgents
-		if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
-			resp.Body.Close()
+		if err := json.Unmarshal(resp.Bytes, &data); err != nil {
 			return err
 		}
-		resp.Body.Close()
 
 		for _, agent := range data.Data {
 			_, err = c.db.ExecContext(ctx, `
@@ -382,15 +344,6 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 			if err != nil {
 				slog.Error("failed to update agent", "error", err, "symbol", agent.Symbol)
 			}
-
-			_, err = c.db.ExecContext(ctx, `
-				INSERT INTO agent_history (timestamp, reset, symbol, ships, credits)
-				VALUES (?, ?, ?, ?, ?)
-				ON CONFLICT(timestamp, symbol) DO NOTHING
-			`, timestamp, c.reset, agent.Symbol, agent.ShipCount, agent.Credits)
-			if err != nil {
-				slog.Error("failed to insert agent history", "error", err, "symbol", agent.Symbol)
-			}
 		}
 
 		if page*perPage >= data.Meta.Total {
@@ -402,7 +355,62 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 	return nil
 }
 
-// Response structures copied/adapted from agentcollector
+func (c *Collector) doGET(ctx context.Context, url string) (HTTPResponse, error) {
+	var retries429 int
+	var retriesOther int
+	c.apiCalls++
+	for {
+		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if err != nil {
+			return HTTPResponse{}, err
+		}
+
+		c.gate.Latch(ctx)
+
+		client := &http.Client{Timeout: 10 * time.Second}
+		resp, err := client.Do(req)
+		if err != nil {
+			retriesOther++
+			if retriesOther >= 3 {
+				return HTTPResponse{}, err
+			}
+			time.Sleep(time.Second)
+			continue
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return HTTPResponse{}, err
+		}
+
+		res := HTTPResponse{
+			Bytes:      body,
+			StatusCode: resp.StatusCode,
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			return res, nil
+		}
+
+		if resp.StatusCode == 429 {
+			retries429++
+			if retries429 >= 5 {
+				return res, fmt.Errorf("received too many 429 errors")
+			}
+			c.gate.Lock(ctx)
+			time.Sleep(time.Second)
+			continue
+		}
+
+		// Handle 4xx or 5xx codes
+		retriesOther++
+		if retriesOther >= 3 {
+			return res, fmt.Errorf("received non-200 status code: %d", resp.StatusCode)
+		}
+		time.Sleep(time.Second)
+	}
+}
 
 type ResponseStatus struct {
 	Leaderboards struct {
@@ -415,17 +423,20 @@ type ResponseStatus struct {
 			ChartCount  int    `json:"chartCount"`
 		} `json:"mostSubmittedCharts"`
 	} `json:"leaderboards"`
-	ResetDate    string `json:"resetDate"`
+	ResetDate string `json:"resetDate"`
+	Health    struct {
+		LastMarketUpdate time.Time `json:"lastMarketUpdate"`
+	} `json:"health"`
 	ServerResets struct {
 		Frequency string    `json:"frequency"`
 		Next      time.Time `json:"next"`
 	} `json:"serverResets"`
 	Stats struct {
-		Accounts *int `json:"accounts,omitempty"`
-		Agents   int  `json:"agents"`
-		Ships    int  `json:"ships"`
-		Systems  int  `json:"systems"`
-		Waypoints int `json:"waypoints"`
+		Accounts  *int `json:"accounts,omitempty"`
+		Agents    int  `json:"agents"`
+		Ships     int  `json:"ships"`
+		Systems   int  `json:"systems"`
+		Waypoints int  `json:"waypoints"`
 	} `json:"stats"`
 	Status  string `json:"status"`
 	Version string `json:"version"`
