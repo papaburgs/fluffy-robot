@@ -2,98 +2,99 @@
 <html lang="en">
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Fluffy Robot Dashboard</title>
         <script src="https://unpkg.com/htmx.org@1.9.10"></script>
         <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
         <link rel="stylesheet" href="static/style.css">
     </head>
-    <body>
-        <header>
-        </header>
-        <nav>
-            <div {{if .AgentVals}}
-                hx-vals='{"paramAgents": "{{printf `%s` .AgentVals}}"}'
-                {{end}}
-                >
-                <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'>
-                    <span>
-                        Time range: 
-                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"1h"}'  hx-target="#chart-content">Last 1h</button>
-                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"4h"}'  hx-target="#chart-content">Last 4h</button>
-                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"24h"}' hx-target="#chart-content">Last 24h</button>
-                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"7d"}'  hx-target="#chart-content">Last 7d</button>
-                    </span>
-                    <span>
-                        <button class="config-button" hx-get="/agents" hx-target="#chart-content" aria-label="Configuration">&#x2699;</button>
-                    </span>
+    <body hx-headers='{"X-CSRF-Token": "tbd"}'>
+        <div class="app-container">
+            {{template "nav.html" .}}
+            
+            <main id="main-content">
+                {{template "header.html" .}}
+                
+                <div id="content-area" 
+                     hx-get="/chart" 
+                     hx-vals='js:{storageAgents: getStoredAgentsForHxVals(), period: "1h"}' 
+                     hx-trigger="load delay:100ms">
+                    <!-- Initial content will be loaded here -->
+                    <div class="loading">Loading dashboard...</div>
                 </div>
-            </div>
-        </nav>
+            </main>
+        </div>
 
-        <main>   
-            <div id="chart-content">
-                Click a filter button to load a chart.
+        <footer>
+            <p>Spacetraders Credit Report - 2026</p>
+            <div class="footer-links">
+                <a href="https://github.com/papaburgs/fluffy-robot" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <a href="https://railway.com?referralCode=-I-osp" target="_blank" rel="noopener noreferrer">Hosted on Railway</a>
             </div>
-        </main>
-<footer>
-    <p>Spacetraders Credit Report - 2025</p>
-    <div class="footer-links">
-        <a href="https://github.com/papaburgs/fluffy-robot" target="_blank" rel="noopener noreferrer">GitHub</a>
-        <a href="https://railway.com?referralCode=-I-osp" target="_blank" rel="noopener noreferrer">Hosted on Railway</a>
-        <a href="/documentation">Documentation/About</a>
-    </div>
-</footer>
+        </footer>
+
         <script>
+            // Sidebar Logic
+            const sidebar = document.getElementById('sidebar');
+            const openBtn = document.getElementById('open-sidebar');
+            const closeBtn = document.getElementById('close-sidebar');
+            const mainContent = document.getElementById('main-content');
+
+            openBtn.addEventListener('click', () => {
+                sidebar.classList.add('open');
+            });
+
+            closeBtn.addEventListener('click', () => {
+                sidebar.classList.remove('open');
+            });
+
+            // Close sidebar when clicking outside on mobile
+            document.addEventListener('click', (e) => {
+                if (window.innerWidth <= 768 && 
+                    !sidebar.contains(e.target) && 
+                    !openBtn.contains(e.target) && 
+                    sidebar.classList.contains('open')) {
+                    sidebar.classList.remove('open');
+                }
+            });
+
+            // Preferences Logic
             const AGENT_STORAGE_KEY = 'selected-agents';
-            const CLASS_SELECTED = 'agent-selected';
-            const CLASS_UNSELECTED = 'agent-unselected';
+            const MY_AGENT_KEY = 'my-agent';
 
             function toggleAgentSelection(agentName) {
-                const agentButton = document.getElementById(`btn-${agentName}`);
-
-                if (!agentButton) {
-                    console.error(`Button for agent ${agentName} not found.`);
-                    return;
-                }
-
                 let selectedAgents = (localStorage.getItem(AGENT_STORAGE_KEY) || '').split(',').filter(Boolean);
-                const agentIndex = selectedAgents.indexOf(agentName);
-                const isCurrentlySelected = agentIndex > -1;
-
-                let newAction; // 'add' or 'remove'
-
-                if (isCurrentlySelected) {
-                    // Agent is currently selected -> REMOVE it
-                    selectedAgents.splice(agentIndex, 1);
-                    newAction = 'remove';
+                const index = selectedAgents.indexOf(agentName);
+                
+                if (index > -1) {
+                    selectedAgents.splice(index, 1);
                 } else {
-                    // Agent is NOT selected -> ADD it
                     selectedAgents.push(agentName);
-                    newAction = 'add';
                 }
-
+                
                 localStorage.setItem(AGENT_STORAGE_KEY, selectedAgents.join(','));
-
-                if (newAction === 'add') {
-                    agentButton.classList.add(CLASS_SELECTED);
-                    agentButton.classList.remove(CLASS_UNSELECTED);
-                } else { // 'remove'
-                    agentButton.classList.add(CLASS_UNSELECTED);
-                    agentButton.classList.remove(CLASS_SELECTED);
+                
+                // Update UI button state immediately
+                const btn = document.getElementById(`btn-${agentName}`);
+                if (btn) {
+                    btn.classList.toggle('agent-selected');
+                    btn.classList.toggle('agent-unselected');
                 }
-
-                console.log(`Agent ${agentName} ${newAction}ed. Stored list: ${selectedAgents.join(',')}`);
             }
 
             function getStoredAgentsForHxVals() {
-                // Get the string from localStorage
-                const savedAgents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
-                console.log("this got called")
-                console.log(savedAgents)
-                // Format the string for hx-vals: 'agentList:Alpha,Charlie'
-                return `${savedAgents}`;
+                const agents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
+                return agents;
             }
+
+            // HTMX event listeners for dynamic behavior
+            document.body.addEventListener('htmx:configRequest', function(evt) {
+                // Add storageAgents to every GET request if not present
+                if(evt.detail.verb === 'get') {
+                     // Check if storageAgents is already in parameters to avoid duplication or override if needed
+                     // But simpler is to let hx-vals handle it on specific elements or inject here
+                }
+            });
         </script>
     </body>
 </html>
-

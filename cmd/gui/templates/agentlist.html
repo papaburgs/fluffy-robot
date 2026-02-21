@@ -1,9 +1,11 @@
-    {{range .}}
+{{range .}}
     <button id="btn-{{.Name}}" 
-        type="button"
-        class="agent-button {{if .IsActive}}agent-active{{else}}agent-inactive{{end}}  {{if .IsChecked}}agent-selected{{else}}agent-unselected{{end}}"
-        onclick="toggleAgentSelection('{{.Name}}')"
-        >{{.Name}}
+            type="button"
+            class="agent-button {{if .IsActive}}active{{else}}inactive{{end}} {{if .IsChecked}}selected{{end}} {{if .IsMyAgent}}my-agent{{end}}"
+            onclick="toggleAgentSelection('{{.Name}}')"
+            title="{{if .IsActive}}Active Agent{{else}}Inactive (175k credits){{end}}"
+    >
+        {{if .IsMyAgent}}★ {{end}}{{.Name}}
+        <span class="status-indicator"></span>
     </button>
-    {{end}}
-
+{{end}}

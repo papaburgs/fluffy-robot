@@ -1,20 +1,73 @@
-<h2>Available Agents</h2>
-<form id="agent-form">
-    <p>
-    <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'>
-        Search for agents:
-        <input class="form-control" type="search"
-        name="agentSearch" 
-        placeholder="Begin Typing To Search Users..."
-        hx-get="/agentlist"
-        hx-trigger="input changed delay:500, keyup[key=='Enter'], load"
-        hx-target="#buttons"
-        hx-swap="innerHTML"
-        hx-indicator=".htmx-indicator">
-        <span class="htmx-indicator">
-            <img src="/static/bars.svg" alt=""/> Searching...
-        </span>
-    </p>
-    <div id="buttons"></div>
+<div class="preferences-container">
+    <h2>Agent Preferences</h2>
+    <p>Select agents to include in your dashboard. Changes are saved automatically.</p>
+    
+    <div class="controls-container" hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'>
+        <div class="search-box">
+            <input class="search-input" type="search" 
+                   name="agentSearch" 
+                   placeholder="Search agents..." 
+                   hx-get="/agentlist" 
+                   hx-trigger="input changed delay:500ms, keyup[key=='Enter'], load, refresh from:#agent-grid" 
+                   hx-target="#agent-grid" 
+                   hx-indicator=".loading-indicator"
+                   hx-include="[name='hideInactive'], [name='sortBy'], [name='myAgent']">
+        </div>
+        
+        <div class="filter-options">
+            <label class="checkbox-label">
+                <input type="checkbox" name="hideInactive" 
+                       hx-get="/agentlist" 
+                       hx-target="#agent-grid" 
+                       hx-include="[name='agentSearch'], [name='sortBy'], [name='myAgent']">
+                Hide Inactive
+            </label>
+            
+            <label class="select-label">
+                Sort by:
+                <select name="sortBy" 
+                        hx-get="/agentlist" 
+                        hx-target="#agent-grid" 
+                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='myAgent']">
+                    <option value="name">Name</option>
+                    <option value="credits">Credits</option>
+                </select>
+            </label>
+
+            <label class="select-label">
+                My Agent:
+                <select id="myAgentSelect" name="myAgent" 
+                        hx-get="/agentlist" 
+                        hx-target="#agent-grid" 
+                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy']"
+                        onchange="localStorage.setItem('my-agent', this.value)">
+                    <option value="">Select...</option>
+                </select>
+            </label>
+        </div>
+        <span class="loading-indicator">Updating...</span>
     </div>
-</form>
+
+    <div id="agent-grid" class="agent-grid">
+        <!-- Agents will be loaded here via HTMX -->
+    </div>
+    
+    <script>
+        // Load options for My Agent select and set value
+        (function() {
+            const select = document.getElementById('myAgentSelect');
+            const savedAgent = localStorage.getItem('my-agent');
+            
+            fetch('/agentoptions')
+                .then(response => response.text())
+                .then(html => {
+                    select.innerHTML = html;
+                    if (savedAgent) {
+                        select.value = savedAgent;
+                        // Trigger a refresh if the initial value is set, to ensure highlighting
+                         htmx.trigger(select, 'change');
+                    }
+                });
+        })();
+    </script>
+</div>

@@ -10,8 +10,8 @@ import (
 
 	_ "embed"
 
-	"github.com/papaburgs/fluffy-robot/internal/app"
 	"github.com/papaburgs/fluffy-robot/internal/db"
+	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
 
 //go:embed static
@@ -34,6 +34,7 @@ func collectionsEnabled() bool {
 }
 
 func main() {
+	logging.InitLogger()
 
 	database, err := db.Connect()
 	if err != nil {
@@ -60,13 +61,7 @@ func main() {
 		http.Handle("/static/", fsHandler)
 	}
 
-	storageLocation := "."
-	if loc, ok := os.LookupEnv("SPACETRADER_LEADERBOARD_BACKUP_PATH"); ok {
-		storageLocation = loc
-	}
-	slog.Debug("storage location:", "base", storageLocation)
-
-	a := app.NewApp(storageLocation, collectionsEnabled(), database)
+	a := NewApp(database)
 	slog.Info("starting fluffy robot", "version", "3.0.0")
 
 	http.HandleFunc("/", a.RootHandler)
@@ -75,6 +70,12 @@ func main() {
 	http.HandleFunc("/status", a.HeaderHandler)
 	http.HandleFunc("/chart", a.LoadChartHandler)
 	http.HandleFunc("/agentlist", a.AgentListHandler)
+	http.HandleFunc("/agentoptions", a.AgentOptionsHandler)
+	
+	// New handlers
+	http.HandleFunc("/leaderboard", a.LeaderboardHandler)
+	http.HandleFunc("/stats", a.StatsHandler)
+	http.HandleFunc("/jumpgates", a.JumpgatesHandler)
 
 	// Start the web server and listen on port 8845.
 	slog.Info("Starting server on http://localhost:8845")
