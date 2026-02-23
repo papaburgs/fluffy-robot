@@ -13,10 +13,6 @@ import (
 func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("RootHandler")
 	w.Header().Set("Content-Type", "text/html")
-	if a.agentCache.IsCacheEvicted() {
-		slog.Debug("reloading cache")
-		a.agentCache.ReloadData(a.Reset)
-	}
 	slog.Info("Incoming request", "endpoint", "index")
 	q := r.URL.Query()
 	slog.Debug("query output")
@@ -34,10 +30,6 @@ func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("LoadChartHandler")
-	if a.agentCache.IsCacheEvicted() {
-		slog.Debug("reloading cache")
-		a.agentCache.ReloadData(a.Reset)
-	}
 
 	q := r.URL.Query()
 	slog.Debug("query output")
@@ -94,20 +86,21 @@ func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
 func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("AgentListHandler")
 	w.Header().Set("Content-Type", "application/json")
-	if a.agentCache.IsCacheEvicted() {
-		slog.Debug("reloading cache")
-		a.agentCache.ReloadData(a.Reset)
-	}
+
 	type data struct {
 		Name      string
 		IsActive  bool
 		IsChecked bool
 	}
 	d := []data{}
-	agents, err := a.agentCache.GetAllAgents()
+	agents, err := a.GetAllAgentsFromDB()
 	if err != nil {
-		slog.Error("Error getting agents", "error", err)
-		return
+		slog.Error("Error getting agents from DB, trying CSV", "error", err)
+		agents, err = a.GetAllAgentsFromCSV()
+		if err != nil {
+			slog.Error("Error getting agents from CSV", "error", err)
+			return
+		}
 	}
 	searchStr := strings.ToLower(r.URL.Query().Get("agentSearch"))
 	slog.Debug("search", "agentSearch", searchStr)

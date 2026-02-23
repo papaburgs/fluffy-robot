@@ -38,13 +38,12 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
-		if err != nil {
-			slog.Error("error getting agent records", "error", err)
-			continue
+		hist, err := a.GetAgentRecordsFromDB(p, 24*time.Hour)
+		if err != nil || len(hist) == 0 {
+			if err != nil {
+				slog.Error("error getting agent records from DB", "error", err)
+			}
+			hist, _ = a.GetAgentRecordsFromCSV(p, 24*time.Hour)
 		}
 		items := make([]opts.LineData, 0)
 		for i, r := range hist {
@@ -82,13 +81,12 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
-		if err != nil {
-			slog.Error("error getting agent records", "error", err)
-			continue
+		hist, err := a.GetAgentRecordsFromDB(p, 4*time.Hour)
+		if err != nil || len(hist) == 0 {
+			if err != nil {
+				slog.Error("error getting agent records from DB", "error", err)
+			}
+			hist, _ = a.GetAgentRecordsFromCSV(p, 4*time.Hour)
 		}
 		items := make([]opts.LineData, 0)
 		for i, r := range hist {
@@ -127,13 +125,12 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
-		if err != nil {
-			slog.Error("error getting agent records", "error", err)
-			continue
+		hist, err := a.GetAgentRecordsFromDB(p, 1*time.Hour)
+		if err != nil || len(hist) == 0 {
+			if err != nil {
+				slog.Error("error getting agent records from DB", "error", err)
+			}
+			hist, _ = a.GetAgentRecordsFromCSV(p, 1*time.Hour)
 		}
 		items := make([]opts.LineData, 0)
 		for _, r := range hist {
@@ -176,13 +173,12 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	}
 
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
-		if err != nil {
-			slog.Error("error getting agent records", "error", err)
-			continue
+		hist, err := a.GetAgentRecordsFromDB(p, 7*24*time.Hour)
+		if err != nil || len(hist) == 0 {
+			if err != nil {
+				slog.Error("error getting agent records from DB", "error", err)
+			}
+			hist, _ = a.GetAgentRecordsFromCSV(p, 7*24*time.Hour)
 		}
 		items := make([]opts.LineData, 0, len(hist)/stride+1)
 		for i, r := range hist {
