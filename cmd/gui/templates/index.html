@@ -9,15 +9,14 @@
         <link rel="stylesheet" href="static/style.css">
     </head>
     <body hx-headers='{"X-CSRF-Token": "tbd"}'>
-        <div class="app-container">
+        <div class="app-container" id="app-container">
             {{template "nav.html" .}}
             
             <main id="main-content">
                 {{template "header.html" .}}
                 
                 <div id="content-area" 
-                     hx-get="/chart" 
-                     hx-vals='js:{storageAgents: getStoredAgentsForHxVals(), period: "1h"}' 
+                     hx-get="/leaderboard" 
                      hx-trigger="load delay:100ms">
                     <!-- Initial content will be loaded here -->
                     <div class="loading">Loading dashboard...</div>
@@ -35,64 +34,44 @@
 
         <script>
             // Sidebar Logic
+            const appContainer = document.getElementById('app-container');
             const sidebar = document.getElementById('sidebar');
-            const openBtn = document.getElementById('open-sidebar');
+            const toggleBtn = document.getElementById('toggle-sidebar');
             const closeBtn = document.getElementById('close-sidebar');
-            const mainContent = document.getElementById('main-content');
 
-            openBtn.addEventListener('click', () => {
-                sidebar.classList.add('open');
-            });
+            const toggleSidebar = () => {
+                const isMobile = window.innerWidth <= 768;
+                if (isMobile) {
+                    sidebar.classList.toggle('open');
+                } else {
+                    appContainer.classList.toggle('sidebar-collapsed');
+                }
+            };
 
-            closeBtn.addEventListener('click', () => {
-                sidebar.classList.remove('open');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', toggleSidebar);
+            }
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    sidebar.classList.remove('open');
+                });
+            }
+
+            // Close sidebar when a link is clicked (on mobile)
+            sidebar.addEventListener('click', (e) => {
+                if (window.innerWidth <= 768 && e.target.closest('.nav-link')) {
+                    sidebar.classList.remove('open');
+                }
             });
 
             // Close sidebar when clicking outside on mobile
             document.addEventListener('click', (e) => {
                 if (window.innerWidth <= 768 && 
                     !sidebar.contains(e.target) && 
-                    !openBtn.contains(e.target) && 
+                    toggleBtn && !toggleBtn.contains(e.target) && 
                     sidebar.classList.contains('open')) {
                     sidebar.classList.remove('open');
-                }
-            });
-
-            // Preferences Logic
-            const AGENT_STORAGE_KEY = 'selected-agents';
-            const MY_AGENT_KEY = 'my-agent';
-
-            function toggleAgentSelection(agentName) {
-                let selectedAgents = (localStorage.getItem(AGENT_STORAGE_KEY) || '').split(',').filter(Boolean);
-                const index = selectedAgents.indexOf(agentName);
-                
-                if (index > -1) {
-                    selectedAgents.splice(index, 1);
-                } else {
-                    selectedAgents.push(agentName);
-                }
-                
-                localStorage.setItem(AGENT_STORAGE_KEY, selectedAgents.join(','));
-                
-                // Update UI button state immediately
-                const btn = document.getElementById(`btn-${agentName}`);
-                if (btn) {
-                    btn.classList.toggle('agent-selected');
-                    btn.classList.toggle('agent-unselected');
-                }
-            }
-
-            function getStoredAgentsForHxVals() {
-                const agents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
-                return agents;
-            }
-
-            // HTMX event listeners for dynamic behavior
-            document.body.addEventListener('htmx:configRequest', function(evt) {
-                // Add storageAgents to every GET request if not present
-                if(evt.detail.verb === 'get') {
-                     // Check if storageAgents is already in parameters to avoid duplication or override if needed
-                     // But simpler is to let hx-vals handle it on specific elements or inject here
                 }
             });
         </script>

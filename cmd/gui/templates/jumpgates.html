@@ -1,0 +1,23 @@
+<div class="jumpgates-container">
+    <h2>Jumpgate Status</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>System</th>
+                <th>Headquarters</th>
+                <th>Jumpgate</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range .}}
+            <tr class="{{if .complete}}complete{{end}}">
+                <td>{{.system}}</td>
+                <td>{{.headquarters}}</td>
+                <td>{{.jumpgate}}</td>
+                <td>{{if .complete}}Complete ({{.completeTime}}){{else}}In Progress{{end}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>

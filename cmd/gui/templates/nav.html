@@ -1,0 +1,22 @@
+<nav id="sidebar" class="sidebar">
+    <div class="sidebar-header">
+        <h3>Fluffy Robot</h3>
+        <button id="close-sidebar" class="icon-button" aria-label="Close Menu">&times;</button>
+    </div>
+    <ul class="nav-links">
+        <li><a href="#" hx-get="/leaderboard" hx-target="#content-area" class="nav-link">Leaderboard</a></li>
+        <li><a href="#" hx-get="/stats" hx-target="#content-area" class="nav-link">Stats</a></li>
+        <li><a href="#" hx-get="/jumpgates" hx-target="#content-area" class="nav-link">Jumpgates</a></li>
+        
+        <li class="nav-section">Charts</li>
+        <li><a href="#" hx-get="/chart?period=1h" hx-target="#content-area" class="nav-link">Last Hour</a></li>
+        <li><a href="#" hx-get="/chart?period=4h" hx-target="#content-area" class="nav-link">Last 4 Hours</a></li>
+        <li><a href="#" hx-get="/chart?period=24h" hx-target="#content-area" class="nav-link">Last 24 Hours</a></li>
+        <li><a href="#" hx-get="/chart?period=7d" hx-target="#content-area" class="nav-link">Last 7 Days</a></li>
+        
+        <li class="nav-spacer"></li>
+        <li><a href="#" hx-get="/agents" hx-target="#content-area" class="nav-link preferences-link">
+            <span class="icon">⚙️</span> Preferences
+        </a></li>
+    </ul>
+</nav>

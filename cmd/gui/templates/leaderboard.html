@@ -1,0 +1,25 @@
+<div class="leaderboard-container">
+    <h2>Leaderboard - {{if eq .Type "credits"}}Most Credits{{else}}Most Charts{{end}}</h2>
+    <div class="leaderboard-controls">
+        <button class="time-button" hx-get="/leaderboard?type=credits" hx-target="#content-area">Most Credits</button>
+        <button class="time-button" hx-get="/leaderboard?type=charts" hx-target="#content-area">Most Charts</button>
+    </div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Agent</th>
+                <th>{{if eq .Type "credits"}}Credits{{else}}Charts{{end}}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $index, $element := .Data}}
+            <tr>
+                <td>{{add $index 1}}</td>
+                <td>{{$element.symbol}}</td>
+                <td>{{$element.count}}</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>

@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -50,32 +51,39 @@ func main() {
 }
 
 func (c *Collector) Run(ctx context.Context) {
-	jumpgateticker := time.NewTicker(30 * time.Minute)
 	var err error
 	c.ingest(ctx)
 	err = c.updateJumpgates(ctx)
 	if err != nil {
 		slog.Error("Error running updateJumpgates")
 	}
-	time.Sleep(time.Minute)
-	agentticker := time.NewTicker(5 * time.Minute)
+	agenttimer := time.NewTimer(5 * time.Minute)
+	jumpgatetimer := time.NewTimer(30 * time.Minute)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-agentticker.C:
-			c.ingest(ctx)
-		case <-jumpgateticker.C:
+		case <-agenttimer.C:
+			epoch := c.ingest(ctx)
+			if epoch {
+				agenttimer.Reset(15 * time.Minute)
+				jumpgatetimer.Reset(46 * time.Minute)
+
+			} else {
+				agenttimer.Reset(5 * time.Minute)
+			}
+		case <-jumpgatetimer.C:
 			err = c.updateJumpgates(ctx)
 			if err != nil {
 				slog.Error("Error running updateJumpgates")
 			}
+			jumpgatetimer.Reset(30 * time.Minute)
 		}
 	}
 }
 
-func (c *Collector) ingest(ctx context.Context) {
+func (c *Collector) ingest(ctx context.Context) bool {
 	slog.Info("starting data ingestion")
 
 	c.currentTimestamp = time.Now().Unix()
@@ -83,13 +91,20 @@ func (c *Collector) ingest(ctx context.Context) {
 	c.ingestStart = time.Now()
 	if err := c.updateStatus(ctx); err != nil {
 		slog.Error("failed to update status", "error", err)
-		return
+		// If we fail to update status, it's likely that the reset time is wrong, so we should skip the rest of the ingestion to avoid inserting bad data
+		// could also be a failed reset or incomplete one, so we will try later
+		if errors.Is(err, epochStart) {
+			slog.Info("skipping rest of ingestion due to recent reset")
+			return true
+		}
+		return false
 	}
 
 	if err := c.updateAgents(ctx); err != nil {
 		slog.Error("failed to update agents", "error", err)
 	}
 	slog.Info("data ingestion completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
+	return false
 }
 
 func (c *Collector) updateJumpgates(ctx context.Context) error {
@@ -322,6 +337,8 @@ func (c *Collector) fetchConstructionStatus(ctx context.Context, systemSymbol, j
 	return response.Data, nil
 }
 
+var epochStart = errors.New("epoch reset detected")
+
 func (c *Collector) updateStatus(ctx context.Context) error {
 	slog.Debug("updating server status")
 
@@ -337,6 +354,13 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 
 	// set this locally as we use it often
 	c.reset = status.ResetDate
+	// if the reset just happened, ie, less than 15 minutes ago, set the reset, but do not update the rest of the stats as they may not be accurate yet
+	// we use the serverreset.next value to determine this. we take exactly one week before that time and if the current time is within 15 minutes after of that,
+	// we consider it a reset and will skip the rest of the collections for 10 mins
+	if time.Until(status.ServerResets.Next.Add(-7*24*time.Hour)) < 15*time.Minute {
+		slog.Info("detected recent reset, skipping stats update to avoid inaccurate data", "nextReset", status.ServerResets.Next)
+		return epochStart
+	}
 
 	tx, err := c.db.BeginTx(ctx, nil)
 	if err != nil {
