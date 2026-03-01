@@ -39,6 +39,9 @@ func main() {
 		http.Handle("/static/", fsHandler)
 	}
 
+
+	
+
 	a := NewApp(database)
 	slog.Info("starting fluffy robot", "version", "3.0.0")
 

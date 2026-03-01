@@ -15,7 +15,7 @@
                 <td>{{.system}}</td>
                 <td>{{.headquarters}}</td>
                 <td>{{.jumpgate}}</td>
-                <td>{{if .complete}}Complete ({{.completeTime}}){{else}}In Progress{{end}}</td>
+                <td>{{.status}}{{if .complete}} ({{.completeTime.Format "2006-01-02 15:04"}}){{end}}</td>
             </tr>
             {{end}}
         </tbody>

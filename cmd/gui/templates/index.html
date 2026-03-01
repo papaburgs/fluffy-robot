@@ -33,6 +33,9 @@
         </footer>
 
         <script>
+            const AGENT_STORAGE_KEY = 'selected-agents';
+            const CLASS_SELECTED = 'agent-selected';
+            const CLASS_UNSELECTED = 'agent-unselected';
             // Sidebar Logic
             const appContainer = document.getElementById('app-container');
             const sidebar = document.getElementById('sidebar');
@@ -74,6 +77,50 @@
                     sidebar.classList.remove('open');
                 }
             });
+            function toggleAgentSelection(agentName) {
+                const agentButton = document.getElementById(`btn-${agentName}`);
+
+                if (!agentButton) {
+                    console.error(`Button for agent ${agentName} not found.`);
+                    return;
+                }
+
+                let selectedAgents = (localStorage.getItem(AGENT_STORAGE_KEY) || '').split(',').filter(Boolean);
+                const agentIndex = selectedAgents.indexOf(agentName);
+                const isCurrentlySelected = agentIndex > -1;
+
+                let newAction; // 'add' or 'remove'
+
+                if (isCurrentlySelected) {
+                    // Agent is currently selected -> REMOVE it
+                    selectedAgents.splice(agentIndex, 1);
+                    newAction = 'remove';
+                } else {
+                    // Agent is NOT selected -> ADD it
+                    selectedAgents.push(agentName);
+                    newAction = 'add';
+                }
+
+                localStorage.setItem(AGENT_STORAGE_KEY, selectedAgents.join(','));
+
+                if (newAction === 'add') {
+                    agentButton.classList.add(CLASS_SELECTED);
+                    agentButton.classList.remove(CLASS_UNSELECTED);
+                } else { // 'remove'
+                    agentButton.classList.add(CLASS_UNSELECTED);
+                    agentButton.classList.remove(CLASS_SELECTED);
+                }
+
+                console.log(`Agent ${agentName} ${newAction}ed. Stored list: ${selectedAgents.join(',')}`);
+            }
+
+            function getStoredAgentsForHxVals() {
+                // Get the string from localStorage
+                const savedAgents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
+                console.log("this got called")
+                console.log(savedAgents)
+                return `${savedAgents}`;
+            }
         </script>
     </body>
 </html>

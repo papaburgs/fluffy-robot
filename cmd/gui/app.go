@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"html/template"
 	"log/slog"
+	"os"
 	"reflect"
 	"strings"
 	"time"
@@ -39,7 +40,11 @@ func NewApp(db *sql.DB) *App {
 		},
 	}
 
-	a.t = template.Must(template.New("").Funcs(funcMap).ParseGlob("templates/*.html"))
+	if templateDir, ok := os.LookupEnv("FLUFFY_TEMPLATE_DIR"); !ok {
+		a.t = template.Must(template.New("").Funcs(funcMap).ParseGlob("templates/*.html"))
+	} else {
+		a.t = template.Must(template.New("").Funcs(funcMap).ParseGlob(templateDir + "templates/*.html"))
+	}
 
 	// Perform initial synchronous update
 	if err := a.updateReset(); err != nil {

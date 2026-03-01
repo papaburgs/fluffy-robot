@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/types"
@@ -13,7 +15,7 @@ func (a *App) GetAgentRecordsFromDB(symbol string, duration time.Duration) ([]ty
 	records := []types.AgentRecord{}
 	startTime := time.Now().Add(-duration).Unix()
 
-	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agents WHERE symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", symbol, startTime)
+	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agentstatus WHERE symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", symbol, startTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query agent history: %w", err)
 	}
@@ -47,12 +49,7 @@ func (a *App) GetAllAgentsFromDB() (map[string]AgentStatus, error) {
 	rows, err := a.DB.Query(`
 		SELECT symbol, credits 
 		FROM agents 
-		WHERE (symbol, timestamp) IN (
-			SELECT symbol, MAX(timestamp) 
-			FROM agents 
-			WHERE reset = ? 
-			GROUP BY symbol
-		)
+		WHERE reset = ? 
 	`, a.Reset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query agents: %w", err)
@@ -116,26 +113,37 @@ func (a *App) GetLeaderboard(leaderboardType string) ([]map[string]interface{}, 
 		return nil, fmt.Errorf("reset not set in App struct")
 	}
 
-	rows, err := a.DB.Query(`
-		SELECT symbol, count
+	var credits, charts string
+	err := a.DB.QueryRow(`
+		SELECT credits, charts
 		FROM leaderboard
-		WHERE reset = ? AND type = ? AND timestamp = (
-			SELECT MAX(timestamp) from leaderboard where reset = ? and type = ? 
-		)
-		ORDER BY count DESC
-	`, a.Reset, leaderboardType, a.Reset, leaderboardType)
+		WHERE reset = ?
+	`, a.Reset).Scan(&credits, &charts)
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+
+	var rawData string
+	if leaderboardType == "credits" {
+		rawData = credits
+	} else {
+		rawData = charts
+	}
 
 	var results []map[string]interface{}
-	for rows.Next() {
-		var symbol string
-		var count int64
-		if err := rows.Scan(&symbol, &count); err != nil {
+	if rawData == "" {
+		return results, nil
+	}
+
+	// Data is stored as SYMBOL,VALUE|SYMBOL,VALUE
+	entries := strings.Split(rawData, "|")
+	for _, entry := range entries {
+		parts := strings.Split(entry, ",")
+		if len(parts) != 2 {
 			continue
 		}
+		symbol := parts[0]
+		count, _ := strconv.ParseInt(parts[1], 10, 64)
 		results = append(results, map[string]interface{}{
 			"symbol": symbol,
 			"count":  count,
@@ -153,7 +161,7 @@ func (a *App) GetJumpgates() ([]map[string]interface{}, error) {
 	}
 
 	rows, err := a.DB.Query(`
-		SELECT system, headquarters, jumpgate, complete
+		SELECT system, headquarters, jumpgate, completetimestamp, status
 		FROM jumpgates
 		WHERE reset = ?
 		ORDER BY system ASC
@@ -167,16 +175,33 @@ func (a *App) GetJumpgates() ([]map[string]interface{}, error) {
 	for rows.Next() {
 		var system, headquarters, jumpgate string
 		var complete int64
-		if err := rows.Scan(&system, &headquarters, &jumpgate, &complete); err != nil {
+		var status int
+		if err := rows.Scan(&system, &headquarters, &jumpgate, &complete, &status); err != nil {
 			continue
 		}
+
+		statusStr := "Unknown"
+		switch status {
+		case 0:
+			statusStr = "No Activity"
+		case 1:
+			statusStr = "Active"
+		case 2:
+			statusStr = "Under Construction"
+		case 3:
+			statusStr = "Complete"
+		}
+
 		results = append(results, map[string]interface{}{
 			"system":       system,
 			"headquarters": headquarters,
 			"jumpgate":     jumpgate,
-			"complete":     complete > 0,           // boolean
+			"complete":     status == 3,            // boolean for template styling
 			"completeTime": time.Unix(complete, 0), // meaningful only if complete > 0
+			"status":       statusStr,
 		})
 	}
 	return results, nil
 }
+
+
