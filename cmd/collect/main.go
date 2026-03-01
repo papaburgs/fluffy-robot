@@ -92,12 +92,11 @@ func (c *Collector) Run(ctx context.Context) {
 	// }
 	// l.Warn("sleeping before second jumpgate update")
 	// time.Sleep(1 * time.Minute)
-
-	err = c.updateJumpgates(ctx)
-	time.Sleep(1 * time.Minute)
-	if err != nil {
-		slog.Error("Error running updateAgents", "error", err)
-	}
+	// err = c.updateJumpgates(ctx)
+	// time.Sleep(1 * time.Minute)
+	// if err != nil {
+	// 	slog.Error("Error running updateAgents", "error", err)
+	// }
 	c.agentTicker = time.NewTicker(5 * time.Minute)
 	c.jumpgateTicker = time.NewTicker(30 * time.Minute)
 	c.constTicker = time.NewTicker(4 * 60 * time.Minute)

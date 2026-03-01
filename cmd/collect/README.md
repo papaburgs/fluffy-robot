@@ -15,7 +15,6 @@ The collector operates on a multi-ticker cycle, balancing high-frequency agent t
 
 ### Execution Flow in `Run`
 
-1.  **Initial Scan**: On startup, it runs `updateJumpgates` once to immediately refresh status for any jumpgates already known to be under construction.
 2.  **Ticker Loop**:
     *   **Agent Ticker (5m)**: Updates server status, leaderboards, and agent credits/ships.
     *   **Jumpgate Ticker (30m)**: Checks progress for jumpgates currently in the `jsConst` (Under Construction) state.
