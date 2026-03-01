@@ -47,7 +47,16 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) AgentsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("AgentsHandler")
-	a.t.ExecuteTemplate(w, "agentlistpage.html", nil)
+	agents, err := a.GetAllAgentsFromDB()
+	if err != nil {
+		slog.Error("Error getting agents from DB", "error", err)
+		http.Error(w, "Error getting agents", http.StatusInternalServerError)
+		return
+	}
+
+	a.t.ExecuteTemplate(w, "agentlistpage.html", map[string]interface{}{
+		"Agents": agents,
+	})
 }
 
 func (a *App) HeaderHandler(w http.ResponseWriter, r *http.Request) {
@@ -142,6 +151,7 @@ func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	if leaderboardType == "" {
 		leaderboardType = "credits"
 	}
+	myAgent := r.URL.Query().Get("myAgent")
 
 	data, err := a.GetLeaderboard(leaderboardType)
 	if err != nil {
@@ -152,8 +162,9 @@ func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	
 	// If template doesn't exist yet, this will fail. We need to create it.
 	a.t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
-		"Type": leaderboardType,
-		"Data": data,
+		"Type":    leaderboardType,
+		"Data":    data,
+		"MyAgent": myAgent,
 	})
 }
 

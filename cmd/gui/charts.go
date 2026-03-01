@@ -23,8 +23,11 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 			Subtitle: "Data point every 15 minutes",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
+			Min:      0,
+			Name:     "Credits",
+			Position: "right",
 		}),
+
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
 			Min:  tfha,
@@ -63,7 +66,8 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 			Subtitle: "20 Data Points per hour",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
+			Min:      0,
+			Position: "right",
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
@@ -104,7 +108,8 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 			Subtitle: "All Data points",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
+			Min:      0,
+			Position: "right",
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
@@ -141,7 +146,7 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 			Title:    "Credits - last 7 days",
 			Subtitle: "Adaptive down-sampling",
 		}),
-		charts.WithYAxisOpts(opts.YAxis{Min: 0}),
+		charts.WithYAxisOpts(opts.YAxis{Min: 0, Position: "right"}),
 		charts.WithXAxisOpts(opts.XAxis{Type: "time", Min: weekAgoMs}),
 		charts.WithTooltipOpts(opts.Tooltip{Show: opts.Bool(true), Trigger: "axis"}),
 	)

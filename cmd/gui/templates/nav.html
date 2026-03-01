@@ -3,7 +3,8 @@
         <h3>Fluffy Robot</h3>
         <button id="close-sidebar" class="icon-button" aria-label="Close Menu">&times;</button>
     </div>
-    <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'>
+    <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals(), myAgent: getMyAgentForHxVals()}'
+         hx-trigger="refresh-vals from:body">
         <ul class="nav-links">
             <li><a href="#" hx-get="/leaderboard" hx-target="#content-area" class="nav-link">Leaderboard</a></li>
             <li><a href="#" hx-get="/stats" hx-target="#content-area" class="nav-link">Stats</a></li>

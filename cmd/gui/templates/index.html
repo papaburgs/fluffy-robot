@@ -34,8 +34,14 @@
 
         <script>
             const AGENT_STORAGE_KEY = 'selected-agents';
+            const MY_AGENT_KEY = 'my-agent';
             const CLASS_SELECTED = 'agent-selected';
             const CLASS_UNSELECTED = 'agent-unselected';
+
+            function getMyAgentForHxVals() {
+                return localStorage.getItem(MY_AGENT_KEY) || '';
+            }
+
             // Sidebar Logic
             const appContainer = document.getElementById('app-container');
             const sidebar = document.getElementById('sidebar');

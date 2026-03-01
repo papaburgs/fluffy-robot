@@ -1,5 +1,23 @@
 <div class="preferences-container">
     <h2>Agent Preferences</h2>
+    
+    <div class="main-agent-section">
+        <h3>Main Agent (Highlight)</h3>
+        <p>Select an agent to highlight in the leaderboard and dashboard.</p>
+        <div class="controls-container">
+            <select id="my-agent-select" class="search-input" 
+                    onchange="localStorage.setItem(MY_AGENT_KEY, this.value); htmx.trigger('body', 'refresh-vals');">
+                <option value="">None</option>
+                {{range $symbol, $details := .Agents}}
+                <option value="{{$symbol}}">{{$symbol}}</option>
+                {{end}}
+            </select>
+        </div>
+    </div>
+
+    <hr class="pref-divider">
+
+    <h2>Dashboard Agents</h2>
     <p>Select agents to include in your dashboard. Changes are saved automatically.</p>
     
     <div class="controls-container">
