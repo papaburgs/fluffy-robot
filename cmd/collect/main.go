@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/db"
@@ -47,440 +48,98 @@ func main() {
 		gate:    gate.New(2, gateBucketSize),
 		baseURL: baseURL,
 	}
+
+	c.filterRegexes = []*regexp.Regexp{}
+	val, ok := os.LookupEnv("FLUFFY_AGENT_IGNORE_FILTERS")
+	if ok {
+		rawPatterns := strings.Split(val, ";")
+
+		for _, p := range rawPatterns {
+			// Clean up whitespace in case of "regex1; regex2"
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+
+			re, err := regexp.Compile(p)
+			if err != nil {
+				// Log the error but keep going so one bad regex doesn't kill the app
+				l.Error("Error compiling regex", "pattern", p, "error", err)
+				continue
+			}
+			slog.Info("Adding agent ignore filter regex", "pattern", p)
+
+			c.filterRegexes = append(c.filterRegexes, re)
+		}
+	}
+
 	c.Run(context.Background())
 }
 
 func (c *Collector) Run(ctx context.Context) {
+	l := slog.With("function", "Run")
+
 	var err error
-	c.ingest(ctx)
+	// err = c.updateStatusAgents(ctx)
+	// if err != nil {
+	// 	slog.Error("Error running updateAgents", "error", err)
+	// }
+	// l.Warn("sleeping before first jumpgate update")
+	// time.Sleep(1 * time.Minute)
+	// err = c.updateInactiveJumpgates(ctx)
+	// if err != nil {
+	// 	slog.Error("Error running updateInactiveJumpgates", "error", err)
+	// }
+	// l.Warn("sleeping before second jumpgate update")
+	// time.Sleep(1 * time.Minute)
+
 	err = c.updateJumpgates(ctx)
+	time.Sleep(1 * time.Minute)
 	if err != nil {
-		slog.Error("Error running updateJumpgates")
+		slog.Error("Error running updateAgents", "error", err)
 	}
-	agenttimer := time.NewTimer(5 * time.Minute)
-	jumpgatetimer := time.NewTimer(30 * time.Minute)
+	c.agentTicker = time.NewTicker(5 * time.Minute)
+	c.jumpgateTicker = time.NewTicker(30 * time.Minute)
+	c.constTicker = time.NewTicker(4 * 60 * time.Minute)
+	resetTimer := time.NewTimer(7 * 24 * time.Hour)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-agenttimer.C:
-			epoch := c.ingest(ctx)
-			if epoch {
-				agenttimer.Reset(15 * time.Minute)
-				jumpgatetimer.Reset(46 * time.Minute)
-
-			} else {
-				agenttimer.Reset(5 * time.Minute)
+		case <-c.agentTicker.C:
+			err := c.updateStatusAgents(ctx)
+			if err != nil {
+				l.Error("Error running updateAgents", "error", err)
 			}
-		case <-jumpgatetimer.C:
+			// set the resetTimer to the nextReset time minus 1 min
+			timeUntilReset := time.Until(c.nextReset.Add(-1 * time.Minute))
+			if timeUntilReset > 0 {
+				resetTimer.Reset(timeUntilReset)
+			}
+		case <-c.jumpgateTicker.C:
 			err = c.updateJumpgates(ctx)
 			if err != nil {
-				slog.Error("Error running updateJumpgates")
+				l.Error("Error running updateJumpgates")
 			}
-			jumpgatetimer.Reset(30 * time.Minute)
-		}
-	}
-}
-
-func (c *Collector) ingest(ctx context.Context) bool {
-	slog.Info("starting data ingestion")
-
-	c.currentTimestamp = time.Now().Unix()
-	c.apiCalls = 0
-	c.ingestStart = time.Now()
-	if err := c.updateStatus(ctx); err != nil {
-		slog.Error("failed to update status", "error", err)
-		// If we fail to update status, it's likely that the reset time is wrong, so we should skip the rest of the ingestion to avoid inserting bad data
-		// could also be a failed reset or incomplete one, so we will try later
-		if errors.Is(err, epochStart) {
-			slog.Info("skipping rest of ingestion due to recent reset")
-			return true
-		}
-		return false
-	}
-
-	if err := c.updateAgents(ctx); err != nil {
-		slog.Error("failed to update agents", "error", err)
-	}
-	slog.Info("data ingestion completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
-	return false
-}
-
-func (c *Collector) updateJumpgates(ctx context.Context) error {
-	l := slog.With("function", "updateJumpgates")
-	l.Info("start")
-
-	c.currentTimestamp = time.Now().Unix()
-	c.apiCalls = 0
-	c.ingestStart = time.Now()
-
-	rows, err := c.db.QueryContext(ctx, `
-		SELECT symbol, headquarters, credits 
-		FROM agents 
-		WHERE (symbol, timestamp) IN (
-			SELECT symbol, MAX(timestamp) 
-			FROM agents 
-			WHERE reset = ? 
-			GROUP BY symbol
-		)
-	`, c.reset)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	l.Debug("parsing query results")
-	activeSystems := make(map[string]string) // system -> headquarters
-	for rows.Next() {
-		var symbol, hq string
-		var credits int64
-		if err := rows.Scan(&symbol, &hq, &credits); err != nil {
-			continue
-		}
-		if credits != 175000 {
-			// System is HQ minus last 3 chars
-			if len(hq) > 3 {
-				system := hq[:len(hq)-3]
-				activeSystems[system] = hq
-			}
-		}
-	}
-
-	// Fetch existing jumpgates for this reset to avoid per-system queries
-	type jgInfo struct {
-		symbol   string
-		complete int64
-	}
-	existingJGs := make(map[string]jgInfo)
-	jgRows, err := c.db.QueryContext(ctx, "SELECT system, jumpgate, complete FROM jumpgates WHERE reset = ?", c.reset)
-	if err == nil {
-		for jgRows.Next() {
-			var system, symbol string
-			var complete int64
-			if err := jgRows.Scan(&system, &symbol, &complete); err == nil {
-				existingJGs[system] = jgInfo{symbol: symbol, complete: complete}
-			}
-		}
-		jgRows.Close()
-	}
-
-	type jgToInsert struct {
-		system, hq, symbol string
-	}
-	type constrToInsert struct {
-		symbol         string
-		fabmat, advcct int
-	}
-	type jgToComplete struct {
-		symbol string
-	}
-
-	var inserts []jgToInsert
-	var constructions []constrToInsert
-	var completions []jgToComplete
-
-	l.Debug("looking through activeSystems")
-	for system, hq := range activeSystems {
-		info, exists := existingJGs[system]
-		jumpgateSymbol := info.symbol
-		complete := info.complete
-
-		if !exists {
-			// Need to find jumpgate symbol for this system
-			l.Debug("finding jumpgate for system", "system", system)
-			var err error
-			jumpgateSymbol, err = c.findJumpgateSymbol(ctx, system)
+		case <-c.constTicker.C:
+			err = c.updateInactiveJumpgates(ctx)
 			if err != nil {
-				slog.Error("failed to find jumpgate symbol", "system", system, "error", err)
-				continue
+				l.Error("Error running updateJumpgates")
 			}
-			inserts = append(inserts, jgToInsert{system: system, hq: hq, symbol: jumpgateSymbol})
-			complete = 0
-		}
-
-		// If jumpgate is not complete, check construction status
-		if complete == 0 {
-			slog.Debug("checking construction status", "system", system, "jumpgate", jumpgateSymbol)
-			status, err := c.fetchConstructionStatus(ctx, system, jumpgateSymbol)
-			if err != nil {
-				slog.Error("failed to fetch construction status", "jumpgate", jumpgateSymbol, "error", err)
-				continue
-			}
-
-			// Update construction table
-			var fabmat, advcct int
-			for _, m := range status.Materials {
-				if m.TradeSymbol == "FAB_MATS" {
-					fabmat = m.Fulfilled
-				} else if m.TradeSymbol == "ADVANCED_CIRCUITRY" {
-					advcct = m.Fulfilled
-				}
-			}
-
-			constructions = append(constructions, constrToInsert{symbol: jumpgateSymbol, fabmat: fabmat, advcct: advcct})
-
-			// If complete, update jumpgates table
-			if status.IsComplete {
-				completions = append(completions, jgToComplete{symbol: jumpgateSymbol})
-			}
+		case <-resetTimer.C:
+			c.agentTicker.Stop()
+			c.jumpgateTicker.Stop()
+			c.constTicker.Stop()
+			time.Sleep(15 * time.Minute)
+			c.agentTicker = time.NewTicker(5 * time.Minute)
+			c.jumpgateTicker = time.NewTicker(30 * time.Minute)
+			c.constTicker = time.NewTicker(4 * 60 * time.Minute)
 		}
 	}
-	l.Debug("done scan")
-	if len(inserts) == 0 && len(constructions) == 0 && len(completions) == 0 {
-		l.Info("nothing to update")
-		return nil
-	}
-
-	tx, err := c.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if len(inserts) > 0 {
-		l.Debug("Updating jumpgate inserts")
-		stmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO jumpgates (reset, system, headquarters, jumpgate, complete, activeagent)
-			VALUES (?, ?, ?, ?, ?, ?)
-		`)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-		for _, jg := range inserts {
-			if _, err := stmt.ExecContext(ctx, c.reset, jg.system, jg.hq, jg.symbol, 0, true); err != nil {
-				slog.Error("failed to insert jumpgate in batch", "system", jg.system, "error", err)
-			}
-		}
-	}
-
-	if len(constructions) > 0 {
-		l.Debug("Updating jumpgate constructions")
-		stmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO construction (reset, timestamp, jumpgate, fabmat, advcct)
-			VALUES (?, ?, ?, ?, ?)
-		`)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-		for _, cn := range constructions {
-			if _, err := stmt.ExecContext(ctx, c.reset, c.currentTimestamp, cn.symbol, cn.fabmat, cn.advcct); err != nil {
-				slog.Error("failed to insert construction in batch", "jumpgate", cn.symbol, "error", err)
-			}
-		}
-	}
-
-	if len(completions) > 0 {
-		l.Debug("updating completions")
-		stmt, err := tx.PrepareContext(ctx, "UPDATE jumpgates SET complete = ? WHERE reset = ? AND jumpgate = ?")
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-		for _, cp := range completions {
-			if _, err := stmt.ExecContext(ctx, c.currentTimestamp, c.reset, cp.symbol); err != nil {
-				slog.Error("failed to update jumpgate completion in batch", "jumpgate", cp.symbol, "error", err)
-			}
-		}
-	}
-
-	err = tx.Commit()
-	if err == nil {
-		slog.Info("jumpgate completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
-	}
-	return err
-}
-
-func (c *Collector) findJumpgateSymbol(ctx context.Context, systemSymbol string) (string, error) {
-	url := fmt.Sprintf("%s/systems/%s", c.baseURL, systemSymbol)
-	resp, err := c.doGET(ctx, url)
-	if err != nil {
-		return "", err
-	}
-
-	var systemResponse struct {
-		Data struct {
-			Waypoints []struct {
-				Symbol string `json:"symbol"`
-				Type   string `json:"type"`
-			} `json:"waypoints"`
-		} `json:"data"`
-	}
-	if err := json.Unmarshal(resp.Bytes, &systemResponse); err != nil {
-		return "", err
-	}
-
-	for _, w := range systemResponse.Data.Waypoints {
-		if w.Type == "JUMP_GATE" {
-			return w.Symbol, nil
-		}
-	}
-
-	return "", fmt.Errorf("no jumpgate found in system %s", systemSymbol)
-}
-
-func (c *Collector) fetchConstructionStatus(ctx context.Context, systemSymbol, jumpgateSymbol string) (ConstructionStatus, error) {
-	url := fmt.Sprintf("%s/systems/%s/waypoints/%s/construction", c.baseURL, systemSymbol, jumpgateSymbol)
-	resp, err := c.doGET(ctx, url)
-	if err != nil {
-		return ConstructionStatus{}, err
-	}
-
-	var response struct {
-		Data ConstructionStatus `json:"data"`
-	}
-	if err := json.Unmarshal(resp.Bytes, &response); err != nil {
-		return ConstructionStatus{}, err
-	}
-
-	return response.Data, nil
 }
 
 var epochStart = errors.New("epoch reset detected")
-
-func (c *Collector) updateStatus(ctx context.Context) error {
-	slog.Debug("updating server status")
-
-	resp, err := c.doGET(ctx, c.baseURL+"/")
-	if err != nil {
-		return err
-	}
-
-	var status ResponseStatus
-	if err := json.Unmarshal(resp.Bytes, &status); err != nil {
-		return err
-	}
-
-	// set this locally as we use it often
-	c.reset = status.ResetDate
-	// if the reset just happened, ie, less than 15 minutes ago, set the reset, but do not update the rest of the stats as they may not be accurate yet
-	// we use the serverreset.next value to determine this. we take exactly one week before that time and if the current time is within 15 minutes after of that,
-	// we consider it a reset and will skip the rest of the collections for 10 mins
-	if time.Until(status.ServerResets.Next.Add(-7*24*time.Hour)) < 15*time.Minute {
-		slog.Info("detected recent reset, skipping stats update to avoid inaccurate data", "nextReset", status.ServerResets.Next)
-		return epochStart
-	}
-
-	tx, err := c.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// Update stats table
-	_, err = tx.ExecContext(ctx, `
-		INSERT INTO stats (reset, marketUpdate, agents, accounts, ships, systems, waypoints, status, version, nextReset)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT(reset) DO UPDATE SET
-			marketUpdate = excluded.marketUpdate,
-			agents = excluded.agents,
-			accounts = excluded.accounts,
-			ships = excluded.ships,
-			systems = excluded.systems,
-			waypoints = excluded.waypoints,
-			status = excluded.status,
-			version = excluded.version,
-			nextReset = excluded.nextReset
-	`,
-		status.ResetDate,
-		status.Health.LastMarketUpdate,
-		status.Stats.Agents,
-		status.Stats.Accounts,
-		status.Stats.Ships,
-		status.Stats.Systems,
-		status.Stats.Waypoints,
-		status.Status,
-		status.Version,
-		status.ServerResets.Next,
-	)
-	if err != nil {
-		return fmt.Errorf("failed to update stats table: %w", err)
-	}
-
-	// Update leaderboard table
-	stmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO leaderboard (timestamp, reset, count, symbol, type)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT(timestamp, symbol, type) DO NOTHING
-	`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	for _, l := range status.Leaderboards.MostCredits {
-		_, err = stmt.ExecContext(ctx, c.currentTimestamp, c.reset, l.Credits, l.AgentSymbol, "credits")
-		if err != nil {
-			slog.Error("failed to insert credits leaderboard", "error", err, "symbol", l.AgentSymbol)
-		}
-	}
-
-	for _, l := range status.Leaderboards.MostSubmittedCharts {
-		_, err = stmt.ExecContext(ctx, c.currentTimestamp, c.reset, l.ChartCount, l.AgentSymbol, "charts")
-		if err != nil {
-			slog.Error("failed to insert charts leaderboard", "error", err, "symbol", l.AgentSymbol)
-		}
-	}
-
-	return tx.Commit()
-}
-
-func (c *Collector) updateAgents(ctx context.Context) error {
-	slog.Debug("updating agents")
-
-	var allAgents []types.PublicAgent
-	page := 1
-	perPage := 20
-
-	for {
-		url := fmt.Sprintf("%s/agents?limit=%d&page=%d", c.baseURL, perPage, page)
-		resp, err := c.doGET(ctx, url)
-		if err != nil {
-			return err
-		}
-
-		var data ResponseAgents
-		if err := json.Unmarshal(resp.Bytes, &data); err != nil {
-			return err
-		}
-
-		allAgents = append(allAgents, data.Data...)
-
-		if page*perPage >= data.Meta.Total {
-			break
-		}
-		page++
-	}
-
-	if len(allAgents) == 0 {
-		return nil
-	}
-
-	tx, err := c.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	stmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO agents (timestamp, reset, symbol, ships, faction, credits, headquarters)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-	`)
-	if err != nil {
-		return err
-	}
-	defer stmt.Close()
-
-	for _, agent := range allAgents {
-		_, err = stmt.ExecContext(ctx, c.currentTimestamp, c.reset, agent.Symbol, agent.ShipCount, agent.StartingFaction, agent.Credits, agent.Headquarters)
-		if err != nil {
-			slog.Error("failed to update agent in batch", "error", err, "symbol", agent.Symbol)
-		}
-	}
-
-	return tx.Commit()
-}
 
 func (c *Collector) doGET(ctx context.Context, url string) (HTTPResponse, error) {
 	var retries429 int
@@ -602,7 +261,12 @@ type Collector struct {
 	baseURL          string
 	gate             *gate.Gate
 	reset            string
+	nextReset        time.Time
 	currentTimestamp int64
 	apiCalls         int
 	ingestStart      time.Time
+	filterRegexes    []*regexp.Regexp
+	agentTicker      *time.Ticker
+	constTicker      *time.Ticker
+	jumpgateTicker   *time.Ticker
 }

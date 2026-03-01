@@ -42,34 +42,41 @@ func InitSchema(db *sql.DB) error {
 
 	queries := []string{
 		`CREATE TABLE IF NOT EXISTS agents (
-			timestamp INTEGER,
 			reset TEXT,
 			symbol TEXT,
-			ships INTEGER,
-			faction TEXT,
 			credits INTEGER,
+			faction TEXT,
 			headquarters TEXT,
-			PRIMARY KEY (timestamp, symbol)
+			PRIMARY KEY (reset, symbol)
 		)`,
-		// Leaderboard table: symbol cannot be PK if it's history.
-		// Using (timestamp, symbol, type) as composite PK for uniqueness of record.
-		`CREATE TABLE IF NOT EXISTS leaderboard (
-			timestamp INTEGER,
+		`CREATE TABLE IF NOT EXISTS agentstatus (
 			reset TEXT,
-			count INTEGER,
 			symbol TEXT,
-			type TEXT,
-			PRIMARY KEY (timestamp, symbol, type)
+			timestamp INTEGER,
+			credits INTEGER,
+			ships INTEGER,
+			PRIMARY KEY (reset, symbol, timestamp)
 		)`,
+		`CREATE TABLE IF NOT EXISTS leaderboard (
+			reset TEXT PRIMARY KEY,
+			charts TEXT,
+			credits TEXT
+		)`,
+		// For jumpgates, we want to track the reset, system, headquarters, jumpgate name,
+		// if it's complete, if the agent is active, and if it's under construction.
+		// if its under construction we will update it more often
+		// if there is no active agents we can skip it for a while
+		// The combination of reset and jumpgate should be unique.
 		`CREATE TABLE IF NOT EXISTS jumpgates (
 			reset TEXT,
 			system TEXT,
 			headquarters TEXT,
 			jumpgate TEXT,
-			complete INTEGER,
-			activeagent BOOLEAN,
-			PRIMARY KEY (reset, jumpgate)
+			completetimestamp INTEGER,
+			status INTEGER,
+			PRIMARY KEY (reset, system)
 		)`,
+		"CREATE INDEX IF NOT EXISTS idx_jumpgates_reset_status ON jumpgates (reset, status)",
 		`CREATE TABLE IF NOT EXISTS construction (
 			reset TEXT,
 			timestamp INTEGER,
@@ -88,7 +95,9 @@ func InitSchema(db *sql.DB) error {
 			waypoints INTEGER,
 			status TEXT,
 			version TEXT,
-			nextReset DATETIME
+			nextReset DATETIME,
+			lats INTEGER,
+			lsts INTEGER
 		)`,
 	}
 
