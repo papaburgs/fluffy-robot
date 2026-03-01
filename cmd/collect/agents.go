@@ -149,7 +149,7 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 		INSERT INTO agents (reset, symbol, credits, faction, headquarters)
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT(reset, symbol) DO UPDATE SET 
-		 credits = excluded.credits,
+		 credits = excluded.credits
 	`)
 	statusstmt, err := tx.PrepareContext(ctx, `
 	    INSERT INTO agentstatus (reset, symbol, timestamp, credits, ships)
@@ -170,7 +170,7 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 			agent.Headquarters,
 		)
 		if err != nil {
-			slog.Error("error to add agent call to  batch", "error", err, "symbol", agent.Symbol)
+			slog.Error("error to add agent call to batch", "error", err, "symbol", agent.Symbol)
 		}
 		_, err = statusstmt.ExecContext(ctx,
 			c.reset,
@@ -180,7 +180,7 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 			agent.ShipCount,
 		)
 		if err != nil {
-			slog.Error("error to add agent status to  batch", "error", err, "symbol", agent.Symbol)
+			slog.Error("error to add agent status to batch", "error", err, "symbol", agent.Symbol)
 		}
 	}
 	err = tx.Commit()
