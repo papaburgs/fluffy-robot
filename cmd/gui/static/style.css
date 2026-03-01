@@ -34,7 +34,7 @@ body {
     height: 100vh;
     position: fixed;
     top: 0;
-    left: -var(--sidebar-width); /* Hidden by default on mobile */
+    left: calc(-1 * var(--sidebar-width)); /* Hidden by default on mobile */
     transition: left 0.3s ease-in-out, margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
     z-index: 1000;
     box-shadow: 2px 0 5px rgba(0,0,0,0.5);
@@ -177,7 +177,7 @@ header {
 @media (min-width: 769px) {
     .sidebar {
         position: relative; /* Take up space in flex container */
-        left: 0;
+        left: 0 !important;
         margin-left: 0;
         z-index: 10;
         box-shadow: none;
@@ -186,7 +186,7 @@ header {
     }
 
     .app-container.sidebar-collapsed .sidebar {
-        margin-left: -var(--sidebar-width);
+        margin-left: calc(-1 * var(--sidebar-width));
         width: 0;
         border-right: none;
     }

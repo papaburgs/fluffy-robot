@@ -19,7 +19,7 @@
                 height: 100vh;
                 position: fixed;
                 top: 0;
-                left: -var(--sidebar-width);
+                left: calc(-1 * var(--sidebar-width));
                 transition: left 0.3s ease-in-out, margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
                 z-index: 1000;
                 display: flex;
@@ -46,12 +46,12 @@
             @media (min-width: 769px) {
                 .sidebar {
                     position: relative;
-                    left: 0;
+                    left: 0 !important;
                     margin-left: 0;
                     min-width: 0;
                 }
                 .app-container.sidebar-collapsed .sidebar {
-                    margin-left: -var(--sidebar-width);
+                    margin-left: calc(-1 * var(--sidebar-width));
                     width: 0;
                     border-right: none;
                 }
