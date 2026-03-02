@@ -214,18 +214,120 @@ header {
     color: var(--accent-color) !important;
 }
 
-/* Preferences Page Styles */
-.pref-divider {
-    border: 0;
-    border-top: 1px solid #333;
-    margin: 30px 0;
+/* Agent Buttons in Preferences */
+.agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+    margin-top: 20px;
 }
 
-.main-agent-section {
+.agent-button {
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: relative;
+    background-color: #2a2a2a;
+    color: #888;
+}
+
+/* State: Active (credits != 175k) */
+.agent-button.active {
+    background-color: #2d3a2d;
+    color: #a0c0a0;
+    border-color: #3e4e3e;
+}
+
+/* State: Inactive (credits == 175k) */
+.agent-button.inactive {
+    background-color: #2a2a2a;
+    color: #666;
+    border-color: #333;
+    font-style: italic;
+}
+
+/* State: Selected (Added to active or inactive) */
+.agent-button.agent-selected {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 8px rgba(187, 134, 252, 0.3);
+}
+
+/* Pair: Active + Selected */
+.agent-button.active.agent-selected {
+    background-color: #3d5a3d;
+    color: #fff;
+}
+
+/* Pair: Inactive + Selected */
+.agent-button.inactive.agent-selected {
+    background-color: #333;
+    color: #ddd;
+}
+
+/* Hover effects */
+.agent-button:hover {
+    transform: translateY(-2px);
+    filter: brightness(1.1);
+}
+
+.status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-left: 8px;
+    background-color: #f44336; /* Default: Red (not selected) */
+    box-shadow: 0 0 5px rgba(244, 67, 54, 0.4);
+}
+
+.agent-button.agent-selected .status-indicator {
+    background-color: #4caf50; /* Selected: Green */
+    box-shadow: 0 0 5px #4caf50;
+}
+
+/* Search and Filters */
+.controls-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: center;
     margin-bottom: 20px;
 }
 
-.main-agent-section h3 {
-    margin-bottom: 10px;
-    color: var(--accent-color);
+.search-box {
+    flex: 1;
+    min-width: 200px;
+}
+
+.search-container {
+    margin-bottom: 20px;
+}
+
+.search-input {
+    width: 100%;
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 1px solid #333;
+    background: #1e1e1e;
+    color: #fff;
+}
+
+.filter-options {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.checkbox-label, .select-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
 }

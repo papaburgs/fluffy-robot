@@ -1,7 +1,7 @@
 {{range .}}
     <button id="btn-{{.Name}}" 
             type="button"
-            class="agent-button {{if .IsActive}}active{{else}}inactive{{end}} {{if .IsChecked}}selected{{end}}"
+            class="agent-button {{if .IsActive}}active{{else}}inactive{{end}} {{if .IsChecked}}agent-selected{{end}}"
             onclick="toggleAgentSelection('{{.Name}}')"
             title="{{if .IsActive}}Active Agent{{else}}Inactive (175k credits){{end}}"
     >

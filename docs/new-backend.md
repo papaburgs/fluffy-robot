@@ -22,13 +22,21 @@ Logic can be copied from agentcollector and used as required.
 This holds the main data we use
 | Column | Type | Description |
 | :--- | :--- | :--- |
-| timestamp | Integer | timestamp in unix epoche time |
 | reset | text | Identifier of which session we are in - format is "2006-01-02"|
 | symbol | TEXT  | agent identifier |
-| ships | integer | count of ships agent has |
+| credits | INTEGER | latest credit balance |
 | faction | TEXT | Starting faction |
-| credits | INTEGER | Current credit balance |
 | headquarters | TEXT | symbol of home world |
+
+### Table: agentStatus
+This holds the timestamped value
+| Column | Type | Description |
+| :--- | :--- | :--- |
+| reset | text | Identifier of which session we are in - format is "2006-01-02"|
+| symbol | TEXT  | agent identifier |
+| timestamp | Integer | timestamp in unix epoche time |
+| ships | integer | count of ships agent has |
+| credits | INTEGER | Current credit balance |
 
 ### Table: leaderboard
 This table will hold records that are tied together by the timestamp and reset

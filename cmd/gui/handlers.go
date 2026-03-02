@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -71,13 +72,13 @@ func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("ExportHandler")
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", `attachment; filename="backup.json"`)
-	
+
 	// Export limited data since we don't have local state
 	data := map[string]interface{}{
-		"reset": a.Reset,
+		"reset":                a.Reset,
 		"collectPointsPerHour": a.collectPointsPerHour,
 	}
-	
+
 	b, err := json.Marshal(data)
 	if err != nil {
 		http.Error(w, "failed to marshal export data", http.StatusInternalServerError)
@@ -103,13 +104,19 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error getting agents", http.StatusInternalServerError)
 		return
 	}
-	searchStr := strings.ToLower(r.URL.Query().Get("agentSearch"))
-	hideInactive := r.URL.Query().Get("hideInactive") == "on"
-	sortBy := r.URL.Query().Get("sortBy")
+	q := r.URL.Query()
+	for k, v := range q {
+		fmt.Println(k, v)
+	}
+	searchStr := strings.ToLower(q.Get("agentSearch"))
+	hideInactive := q.Get("hideInactive") == "on"
+	sortBy := q.Get("sortBy")
+
+	storageAgents := q.Get("storageAgents")
+	paramAgents := q.Get("paramAgents")
 
 	storageAgentsMap := make(map[string]bool)
-	storageAgentsParam := r.URL.Query().Get("storageAgents")
-	for _, i := range strings.Split(storageAgentsParam, ",") {
+	for _, i := range mergeAgents(storageAgents, paramAgents) {
 		storageAgentsMap[i] = true
 	}
 
@@ -159,7 +166,7 @@ func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to get leaderboard", http.StatusInternalServerError)
 		return
 	}
-	
+
 	// If template doesn't exist yet, this will fail. We need to create it.
 	a.t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
 		"Type":    leaderboardType,
