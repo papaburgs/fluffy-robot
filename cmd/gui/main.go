@@ -38,10 +38,14 @@ func main() {
 		fsHandler := http.FileServer(http.FS(staticFiles))
 		http.Handle("/static/", fsHandler)
 	}
-
-
+	var portNumber string = ":8845"
+    if pn, ok := os.LookupEnv("FLUFFY_PORT"); ok {
+		portNumber = pn
+	}
+	if ! strings.HasPrefix(portNumber, ":") {
+		portNumber = ":" + portNumber
+	}
 	
-
 	a := NewApp(database)
 	slog.Info("starting fluffy robot", "version", "3.0.0")
 
