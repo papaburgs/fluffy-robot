@@ -35,8 +35,8 @@ WORKDIR /root/
 
 # Copy the compiled executable from the 'builder' stage
 COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/app .
-COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/templates ./templates/
-COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/static ./static/
+COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/templates ./
+COPY --from=builder /go/src/github.com/papaburgs/fluffy-robot/static ./
 # Copy the CA certificates from the builder stage
 # Standard location for many applications to find them
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
