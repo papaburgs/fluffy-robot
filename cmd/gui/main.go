@@ -45,7 +45,7 @@ func main() {
 	if ! strings.HasPrefix(portNumber, ":") {
 		portNumber = ":" + portNumber
 	}
-	
+	slog.Debug("setting up database")
 	a := NewApp(database)
 	slog.Info("starting fluffy robot", "version", "3.0.0")
 
