@@ -59,6 +59,6 @@ func main() {
 	http.HandleFunc("/stats", a.StatsHandler)
 	http.HandleFunc("/jumpgates", a.JumpgatesHandler)
 
-	slog.Info("Starting server on http://localhost:8845")
-	slog.Warn("Server Done", "Error", http.ListenAndServe(":8845", nil))
+	slog.Info("Starting server on http://localhost on " + portNumber)
+	slog.Warn("Server Done", "Error", http.ListenAndServe(portNumber, nil))
 }
