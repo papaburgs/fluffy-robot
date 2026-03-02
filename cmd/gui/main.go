@@ -4,6 +4,7 @@ import (
 	"embed"
 	"net/http"
 	"os"
+	"strings"
 
 	"log/slog"
 
