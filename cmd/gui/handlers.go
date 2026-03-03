@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"sort"
@@ -46,8 +45,8 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	a.RenderChartFragment(w, line)
 }
 
-func (a *App) AgentsHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("AgentsHandler")
+func (a *App) PermissionsHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("PermissionsHandler")
 	agents, err := a.GetAllAgentsFromDB()
 	if err != nil {
 		slog.Error("Error getting agents from DB", "error", err)
@@ -55,7 +54,7 @@ func (a *App) AgentsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.t.ExecuteTemplate(w, "agentlistpage.html", map[string]interface{}{
+	a.t.ExecuteTemplate(w, "permissions.html", map[string]interface{}{
 		"Agents": agents,
 	})
 }
@@ -87,8 +86,8 @@ func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
-func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("AgentListHandler")
+func (a *App) PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
+	slog.Debug("PermissionsGridHandler")
 	// This handler returns a partial (HTML) for HTMX
 
 	type data struct {
@@ -105,9 +104,6 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	q := r.URL.Query()
-	for k, v := range q {
-		fmt.Println(k, v)
-	}
 	searchStr := strings.ToLower(q.Get("agentSearch"))
 	hideInactive := q.Get("hideInactive") == "on"
 	sortBy := q.Get("sortBy")
@@ -150,7 +146,7 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 		return d[i].Name < d[j].Name // Ascending name (default)
 	})
 
-	a.t.ExecuteTemplate(w, "agentlist.html", d)
+	a.t.ExecuteTemplate(w, "permissions-grid.html", d)
 }
 func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("LeaderboardHandler")

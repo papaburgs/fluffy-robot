@@ -51,10 +51,10 @@ func main() {
 	slog.Info("starting fluffy robot", "version", "3.0.0")
 
 	http.HandleFunc("/", a.RootHandler)
-	http.HandleFunc("/agents", a.AgentsHandler)
+	http.HandleFunc("/permissions", a.PermissionsHandler)
 	http.HandleFunc("/status", a.HeaderHandler)
 	http.HandleFunc("/chart", a.LoadChartHandler)
-	http.HandleFunc("/agentlist", a.AgentListHandler)
+	http.HandleFunc("/permissions-grid", a.PermissionsGridHandler)
 
 	http.HandleFunc("/leaderboard", a.LeaderboardHandler)
 	http.HandleFunc("/stats", a.StatsHandler)

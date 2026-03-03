@@ -1,5 +1,5 @@
-<div class="preferences-container">
-    <h2>Agent Preferences</h2>
+<div class="preferences-container" hx-vals='js:{storageAgents: getStoredAgentsForHxVals(), myAgent: getMyAgentForHxVals()}' hx-trigger="refresh-vals from:body">
+    <h2>Permissions</h2>
     
     <h2>Dashboard Agents</h2>
     <p>Select agents to include in your dashboard. Changes are saved automatically.</p>
@@ -9,7 +9,7 @@
             <input class="search-input" type="search" 
                    name="agentSearch" 
                    placeholder="Search agents..." 
-                   hx-get="/agentlist" 
+                   hx-get="/permissions-grid" 
                    hx-trigger="input changed delay:500ms, keyup[key=='Enter'], load, refresh from:#agent-grid" 
                    hx-target="#agent-grid" 
                    hx-indicator=".loading-indicator"
@@ -19,7 +19,7 @@
         <div class="filter-options">
             <label class="checkbox-label">
                 <input type="checkbox" name="hideInactive" 
-                       hx-get="/agentlist" 
+                       hx-get="/permissions-grid" 
                        hx-target="#agent-grid" 
                        hx-include="[name='agentSearch'], [name='sortBy']">
                 Hide Inactive
@@ -28,7 +28,7 @@
             <label class="select-label">
                 Sort by:
                 <select name="sortBy" 
-                        hx-get="/agentlist" 
+                        hx-get="/permissions-grid" 
                         hx-target="#agent-grid" 
                         hx-include="[name='agentSearch'], [name='hideInactive']">
                     <option value="name">Name</option>
@@ -38,10 +38,12 @@
         </div>
         <span class="loading-indicator">Updating...</span>
     </div>
-    <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'
-        <div id="agent-grid" class="agent-grid">
-            <!-- Agents will be loaded here via HTMX -->
-        </div>
+
+    <div id="agent-grid" class="agent-grid"
+         hx-get="/permissions-grid"
+         hx-trigger="load delay:10ms">
+        <!-- Agents will be loaded here via HTMX -->
+    </div>
     </div>
     <hr class="pref-divider">
     <div class="main-agent-section">
