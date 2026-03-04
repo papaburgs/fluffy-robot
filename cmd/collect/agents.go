@@ -146,10 +146,12 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 	// if they do exist we are just updating the credits,
 	// we use credits to see if the agent is active and for sorting
 	agentstmt, err := tx.PrepareContext(ctx, `
-		INSERT INTO agents (reset, symbol, credits, faction, headquarters)
-		VALUES (?, ?, ?, ?, ?)
+		INSERT INTO agents (reset, symbol, credits, faction, headquarters, system)
+		VALUES (?, ?, ?, ?, ?, ?)
 		ON CONFLICT(reset, symbol) DO UPDATE SET 
-		 credits = excluded.credits
+		 credits = excluded.credits,
+		 system = excluded.system
+
 	`)
 	statusstmt, err := tx.PrepareContext(ctx, `
 	    INSERT INTO agentstatus (reset, symbol, timestamp, credits, ships)
@@ -168,6 +170,7 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 			agent.Credits,
 			agent.StartingFaction,
 			agent.Headquarters,
+			getSystemFromHQ(agent.Headquarters),
 		)
 		if err != nil {
 			slog.Error("error to add agent call to batch", "error", err, "symbol", agent.Symbol)

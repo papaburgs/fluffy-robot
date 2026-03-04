@@ -47,6 +47,7 @@ func InitSchema(db *sql.DB) error {
 			credits INTEGER,
 			faction TEXT,
 			headquarters TEXT,
+			system TEXT,
 			PRIMARY KEY (reset, symbol)
 		)`,
 		`CREATE TABLE IF NOT EXISTS agentstatus (
