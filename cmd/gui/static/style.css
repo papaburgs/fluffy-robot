@@ -205,22 +205,26 @@ header {
 }
 
 .chart-scroll-wrapper {
-  /* If you want the page to scroll, you can omit fixed height 
-     and let it be part of normal flow. If you want *this area* 
-     to scroll independently, give it a fixed height and overflow. */
-
-  /* Option A: Let entire page scroll (most common) */
-  /* no fixed height, no overflow needed */
-
-  /* Option B: Make the chart area independently scrollable */
-  /* height: 70vh; */
-  /* overflow-y: auto; */
-
-  /* Make sure touch scroll gestures are allowed vertically */
-  touch-action: pan-y pinch-zoom;
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+    margin-bottom: 20px;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    padding: 10px;
+    box-sizing: border-box;
 }
 
-/* Agent Highlighting */
+#chart {
+    min-width: 800px; /* Force a readable width on mobile to enable scrolling */
+}
+
+/* Ensure the chart inside doesn't get squashed and allows scrolling */
+#chart > div {
+    margin: 0 auto;
+}
+
+/* Responsive adjustments */
 .my-agent-highlight {
     background-color: rgba(187, 134, 252, 0.2) !important;
     font-weight: bold;

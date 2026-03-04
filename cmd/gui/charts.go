@@ -17,6 +17,7 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme: "dark",
+			Width: "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last 24 hours",
@@ -60,6 +61,7 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme: "dark",
+			Width: "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last 4 hours",
@@ -102,6 +104,7 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme: "dark",
+			Width: "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last hour",
@@ -141,7 +144,10 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	weekAgoMs := int(time.Now().Add(-7 * 24 * time.Hour).UnixMilli())
 
 	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{Theme: "dark"}),
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+			Width: "100%",
+		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last 7 days",
 			Subtitle: "Adaptive down-sampling",
