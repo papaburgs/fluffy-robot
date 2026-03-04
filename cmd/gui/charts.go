@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
-	"github.com/go-echarts/go-echarts/v2/render"
+	"github.com/papaburgs/fluffy-robot/internal/types"
 )
 
 func (a *App) Last24CreditChart(agents []string) *charts.Line {
@@ -189,17 +189,56 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	return line
 }
 
-// RenderChartFragment renders a go-echarts chart as a fragment (div + script) to the ResponseWriter.
-func (a *App) RenderChartFragment(w io.Writer, chart render.Renderer) error {
-	snippet := chart.RenderSnippet()
-
-	data := struct {
-		Element template.HTML
-		Script  template.HTML
-	}{
-		Element: template.HTML(snippet.Element),
-		Script:  template.HTML(snippet.Script),
+func (a *App) JumpgateConstructionChart(data map[string][]types.ConstructionRecord, duration time.Duration) *charts.Line {
+	line := charts.NewLine()
+	tfha := int(time.Now().Add(-duration).UnixMilli())
+	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+			Width: "100%",
+		}),
+		charts.WithTitleOpts(opts.Title{
+			Title:    "Jumpgate Construction Progress",
+			Subtitle: "Materials vs Time",
+		}),
+		charts.WithYAxisOpts(opts.YAxis{
+			Min:      0,
+			Position: "right",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type: "time",
+			Min:  tfha,
+		}),
+		charts.WithTooltipOpts(opts.Tooltip{
+			Show:    opts.Bool(true),
+			Trigger: "axis",
+		}),
+	)
+	for jg, recs := range data {
+		fabItems := make([]opts.LineData, 0)
+		advItems := make([]opts.LineData, 0)
+		for _, r := range recs {
+			fabItems = append(fabItems, opts.LineData{Value: []interface{}{r.Timestamp, r.Fabmat}})
+			advItems = append(advItems, opts.LineData{Value: []interface{}{r.Timestamp, r.Advcct}})
+		}
+		line.AddSeries(jg+" (Fabmat)", fabItems)
+		line.AddSeries(jg+" (Advcct)", advItems)
 	}
+	return line
+}
 
+type ChartSnippet struct {
+	Element template.HTML
+	Script  template.HTML
+}
+
+type ChartPageData struct {
+	CreditChart       ChartSnippet
+	ConstructionTable []types.ConstructionOverview
+	ConstructionChart ChartSnippet
+}
+
+// RenderChartFragment renders the chart page content to the ResponseWriter.
+func (a *App) RenderChartFragment(w io.Writer, data ChartPageData) error {
 	return a.t.ExecuteTemplate(w, "chart.html", data)
 }

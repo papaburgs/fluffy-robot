@@ -2,10 +2,12 @@ package main
 
 import (
 	"encoding/json"
+	"html/template"
 	"log/slog"
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 )
@@ -25,24 +27,58 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	paramAgents := q.Get("paramAgents")
 
 	agents := mergeAgents(storageAgents, paramAgents)
-	var line *charts.Line
+
+	pageData := ChartPageData{}
 
 	// Read period from query and select chart.
 	period := q.Get("period")
+	var duration time.Duration
+	var creditChart *charts.Line
 	slog.Info("Incoming request", "endpoint", "chart", "period", period)
 	switch period {
 	case "24h":
-		line = a.Last24CreditChart(agents)
+		duration = 24 * time.Hour
+		creditChart = a.Last24CreditChart(agents)
 	case "4h":
-		line = a.Last4CreditChart(agents)
+		duration = 4 * time.Hour
+		creditChart = a.Last4CreditChart(agents)
 	case "7d":
-		line = a.Last7dCreditChart(agents)
+		duration = 7 * 24 * time.Hour
+		creditChart = a.Last7dCreditChart(agents)
 	default:
-		line = a.Last1CreditChart(agents)
+		duration = 1 * time.Hour
+		creditChart = a.Last1CreditChart(agents)
+	}
+
+	if creditChart != nil {
+		snippet := creditChart.RenderSnippet()
+		pageData.CreditChart = ChartSnippet{
+			Element: template.HTML(snippet.Element),
+			Script:  template.HTML(snippet.Script),
+		}
+	}
+
+	// Get latest construction overview
+	overview, err := a.GetLatestConstructionRecords(agents)
+	if err == nil && len(overview) > 0 {
+		pageData.ConstructionTable = overview
+	}
+
+	// Generate construction chart if any data
+	recs, err := a.GetConstructionRecordsFromDB(agents, duration)
+	if err == nil && len(recs) > 0 {
+		constChart := a.JumpgateConstructionChart(recs, duration)
+		if constChart != nil {
+			snippet := constChart.RenderSnippet()
+			pageData.ConstructionChart = ChartSnippet{
+				Element: template.HTML(snippet.Element),
+				Script:  template.HTML(snippet.Script),
+			}
+		}
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	a.RenderChartFragment(w, line)
+	a.RenderChartFragment(w, pageData)
 }
 
 func (a *App) PermissionsHandler(w http.ResponseWriter, r *http.Request) {

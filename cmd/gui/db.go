@@ -36,6 +36,101 @@ func (a *App) GetAgentRecordsFromDB(symbol string, duration time.Duration) ([]ty
 	return records, nil
 }
 
+// GetConstructionRecordsFromDB retrieves jumpgate construction progress history.
+func (a *App) GetConstructionRecordsFromDB(agents []string, duration time.Duration) (map[string][]types.ConstructionRecord, error) {
+	res := make(map[string][]types.ConstructionRecord)
+	startTime := time.Now().Add(-duration).Unix()
+
+	for _, agent := range agents {
+		var hq string
+		err := a.DB.QueryRow("SELECT headquarters FROM agents WHERE reset = ? AND symbol = ?", a.Reset, agent).Scan(&hq)
+		if err != nil {
+			continue
+		}
+		parts := strings.Split(hq, "-")
+		if len(parts) < 2 {
+			continue
+		}
+		system := parts[0] + "-" + parts[1]
+
+		var jg string
+		err = a.DB.QueryRow("SELECT jumpgate FROM jumpgates WHERE reset = ? AND system = ? AND status IN (2, 3)", a.Reset, system).Scan(&jg)
+		if err != nil {
+			continue
+		}
+
+		// Avoid querying same jumpgate multiple times if agents share hq system
+		if _, ok := res[jg]; ok {
+			continue
+		}
+
+		rows, err := a.DB.Query("SELECT timestamp, fabmat, advcct FROM construction WHERE reset = ? AND jumpgate = ? AND timestamp >= ? ORDER BY timestamp ASC", a.Reset, jg, startTime)
+		if err != nil {
+			slog.Error("failed to query construction records", "jg", jg, "error", err)
+			continue
+		}
+		defer rows.Close()
+
+		recs := []types.ConstructionRecord{}
+		for rows.Next() {
+			var ts int64
+			var fab, adv int
+			if err := rows.Scan(&ts, &fab, &adv); err != nil {
+				continue
+			}
+			recs = append(recs, types.ConstructionRecord{
+				Timestamp: time.Unix(ts, 0).UTC(),
+				Fabmat:    fab,
+				Advcct:    adv,
+			})
+		}
+		if len(recs) > 0 {
+			res[jg] = recs
+		}
+	}
+	return res, nil
+}
+
+// GetLatestConstructionRecords retrieves the most recent construction progress for a set of agents.
+func (a *App) GetLatestConstructionRecords(agents []string) ([]types.ConstructionOverview, error) {
+	results := []types.ConstructionOverview{}
+
+	for _, agent := range agents {
+		var hq string
+		err := a.DB.QueryRow("SELECT headquarters FROM agents WHERE reset = ? AND symbol = ?", a.Reset, agent).Scan(&hq)
+		if err != nil {
+			continue
+		}
+		parts := strings.Split(hq, "-")
+		if len(parts) < 2 {
+			continue
+		}
+		system := parts[0] + "-" + parts[1]
+
+		var jg string
+		err = a.DB.QueryRow("SELECT jumpgate FROM jumpgates WHERE reset = ? AND system = ? AND status IN (2, 3)", a.Reset, system).Scan(&jg)
+		if err != nil {
+			continue
+		}
+
+		var ts int64
+		var fab, adv int
+		err = a.DB.QueryRow("SELECT timestamp, fabmat, advcct FROM construction WHERE reset = ? AND jumpgate = ? ORDER BY timestamp DESC LIMIT 1", a.Reset, jg).Scan(&ts, &fab, &adv)
+		if err != nil {
+			continue
+		}
+
+		results = append(results, types.ConstructionOverview{
+			Agent:     agent,
+			Jumpgate:  jg,
+			Fabmat:    fab,
+			Advcct:    adv,
+			Timestamp: time.Unix(ts, 0).UTC(),
+		})
+	}
+	return results, nil
+}
+
 // GetAllAgentsFromDB returns all agents and their active status from Turso DB.
 func (a *App) GetAllAgentsFromDB() (map[string]AgentStatus, error) {
 	l := slog.With("function", "GetAllAgentsFromDB")

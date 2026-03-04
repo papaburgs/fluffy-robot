@@ -215,13 +215,53 @@ header {
     box-sizing: border-box;
 }
 
-#chart {
+.chart-scroll-wrapper > div {
     min-width: 800px; /* Force a readable width on mobile to enable scrolling */
 }
 
 /* Ensure the chart inside doesn't get squashed and allows scrolling */
-#chart > div {
+.chart-scroll-wrapper > div > div {
     margin: 0 auto;
+}
+
+/* Construction Summary Table */
+.construction-summary {
+    margin: 30px 0;
+    padding: 20px;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+}
+
+.construction-summary h3 {
+    margin-top: 0;
+    color: var(--accent-color);
+}
+
+.table-container {
+    overflow-x: auto;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+}
+
+th, td {
+    padding: 12px 15px;
+    text-align: left;
+    border-bottom: 1px solid #333;
+}
+
+th {
+    background-color: rgba(31, 60, 136, 0.3);
+    color: var(--accent-color);
+    font-weight: 600;
+}
+
+tr:hover {
+    background-color: rgba(255, 255, 255, 0.05);
 }
 
 /* Responsive adjustments */

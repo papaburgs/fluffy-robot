@@ -20,3 +20,17 @@ type AgentRecord struct {
 	ShipCount int
 	Credits   int
 }
+
+type ConstructionRecord struct {
+	Timestamp time.Time
+	Fabmat    int
+	Advcct    int
+}
+
+type ConstructionOverview struct {
+	Agent     string
+	Jumpgate  string
+	Fabmat    int
+	Advcct    int
+	Timestamp time.Time
+}
