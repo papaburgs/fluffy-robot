@@ -114,7 +114,7 @@ func (c *Collector) Run(ctx context.Context) {
 				l.Error("Error running updateAgents", "error", err)
 			}
 			// set the resetTimer to the nextReset time minus 1 min
-			timeUntilReset := time.Until(c.nextReset.Add(-1 * time.Minute))
+			// timeUntilReset := time.Until(c.nextReset.Add(-1 * time.Minute))
 			// if timeUntilReset > 0 {
 			//	resetTimer.Reset(timeUntilReset)
 			// }
