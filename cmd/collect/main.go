@@ -100,22 +100,24 @@ func (c *Collector) Run(ctx context.Context) {
 	c.agentTicker = time.NewTicker(5 * time.Minute)
 	c.jumpgateTicker = time.NewTicker(30 * time.Minute)
 	c.constTicker = time.NewTicker(4 * 60 * time.Minute)
-	resetTimer := time.NewTimer(7 * 24 * time.Hour)
+	// resetTimer := time.NewTimer(7 * 24 * time.Hour)
+	resetTimer := time.NewTimer(7 * time.Minute)
 
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-c.agentTicker.C:
+			l.Info("agent ticker emit")
 			err := c.updateStatusAgents(ctx)
 			if err != nil {
 				l.Error("Error running updateAgents", "error", err)
 			}
 			// set the resetTimer to the nextReset time minus 1 min
 			timeUntilReset := time.Until(c.nextReset.Add(-1 * time.Minute))
-			if timeUntilReset > 0 {
-				resetTimer.Reset(timeUntilReset)
-			}
+			// if timeUntilReset > 0 {
+			//	resetTimer.Reset(timeUntilReset)
+			// }
 		case <-c.jumpgateTicker.C:
 			err = c.updateJumpgates(ctx)
 			if err != nil {
@@ -127,13 +129,18 @@ func (c *Collector) Run(ctx context.Context) {
 				l.Error("Error running updateJumpgates")
 			}
 		case <-resetTimer.C:
+			l.Info("reset timer emit")
 			c.agentTicker.Stop()
 			c.jumpgateTicker.Stop()
 			c.constTicker.Stop()
-			time.Sleep(15 * time.Minute)
+			
+			l.Info("sleep 11 mins")
+			time.Sleep(11 * time.Minute)
 			c.agentTicker = time.NewTicker(5 * time.Minute)
 			c.jumpgateTicker = time.NewTicker(30 * time.Minute)
 			c.constTicker = time.NewTicker(4 * 60 * time.Minute)
+			resetTimer.Reset(11 * time.Minute)
+			l.Info("restarted tickers")
 		}
 	}
 }
