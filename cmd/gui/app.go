@@ -51,7 +51,7 @@ func NewApp(db *sql.DB) *App {
 		slog.Error("initial reset fetch failed", "error", err)
 	}
 
-	go a.updateResetLoop()
+	go a.updateResetLoop(a.Reset)
 
 	return &a
 }
@@ -75,20 +75,22 @@ func (a *App) updateReset() error {
 }
 
 // updateResetLoop continuously updates the Reset field of the App struct in the background.
-func (a *App) updateResetLoop() {
+func (a *App) updateResetLoop(current string) {
 	l := slog.With("function", "updateResetLoop")
 	for {
 		var reset string
 		var nextReset time.Time
-
-		err := a.DB.QueryRow("SELECT reset, nextReset FROM stats ORDER BY reset DESC LIMIT 1").Scan(&reset, &nextReset)
-		if err != nil {
-			l.Error("failed to fetch reset in loop", "error", err)
-			// Don't wipe the reset on a temporary failure
-			time.Sleep(1 * time.Minute) // Wait a minute before retrying on error
-			continue
+		if current == "" {
+			err := a.DB.QueryRow("SELECT reset, nextReset FROM stats ORDER BY reset DESC LIMIT 1").Scan(&reset, &nextReset)
+			if err != nil {
+				l.Error("failed to fetch reset in loop", "error", err)
+				// Don't wipe the reset on a temporary failure
+				time.Sleep(1 * time.Minute) // Wait a minute before retrying on error
+				continue
+			}
+		} else {
+			reset = current
 		}
-
 		if a.Reset != reset {
 			l.Info("detected new reset", "reset", reset, "nextReset", nextReset)
 			a.Reset = reset

@@ -39,7 +39,7 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := a.GetAgentRecordsFromDB(p, 24*time.Hour)
+		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 24*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records from DB", "error", err)
 			continue
@@ -81,7 +81,7 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := a.GetAgentRecordsFromDB(p, 4*time.Hour)
+		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 4*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records from DB", "error", err)
 			continue
@@ -124,7 +124,7 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := a.GetAgentRecordsFromDB(p, 1*time.Hour)
+		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 1*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records from DB", "error", err)
 			continue
@@ -173,7 +173,7 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	}
 
 	for _, p := range agents {
-		hist, err := a.GetAgentRecordsFromDB(p, 7*24*time.Hour)
+		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 7*24*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records from DB", "error", err)
 			continue

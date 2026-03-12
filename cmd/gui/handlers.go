@@ -59,13 +59,13 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get latest construction overview
-	overview, err := a.GetLatestConstructionRecords(agents)
+	overview, err := a.GetLatestConstructionRecords(agents, a.Reset)
 	if err == nil && len(overview) > 0 {
 		pageData.ConstructionTable = overview
 	}
 
 	// Generate construction chart if any data
-	recs, err := a.GetConstructionRecordsFromDB(agents, duration)
+	recs, err := a.GetConstructionRecordsFromDB(agents, a.Reset, duration)
 	if err == nil && len(recs) > 0 {
 		constChart := a.JumpgateConstructionChart(recs, duration)
 		if constChart != nil {
@@ -83,7 +83,7 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) PermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("PermissionsHandler")
-	agents, err := a.GetAllAgentsFromDB()
+	agents, err := a.GetAllAgentsFromDB(a.Reset)
 	if err != nil {
 		slog.Error("Error getting agents from DB", "error", err)
 		http.Error(w, "Error getting agents", http.StatusInternalServerError)
@@ -133,7 +133,7 @@ func (a *App) PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		IsChecked bool
 	}
 	d := []data{}
-	agents, err := a.GetAllAgentsFromDB()
+	agents, err := a.GetAllAgentsFromDB(a.Reset)
 	if err != nil {
 		slog.Error("Error getting agents from DB", "error", err)
 		http.Error(w, "Error getting agents", http.StatusInternalServerError)
@@ -192,7 +192,7 @@ func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	myAgent := r.URL.Query().Get("myAgent")
 
-	data, err := a.GetLeaderboard(leaderboardType)
+	data, err := a.GetLeaderboard(leaderboardType, a.Reset)
 	if err != nil {
 		slog.Error("failed to get leaderboard", "error", err)
 		http.Error(w, "failed to get leaderboard", http.StatusInternalServerError)
@@ -209,7 +209,7 @@ func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) StatsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("StatsHandler")
-	stats, err := a.GetStats()
+	stats, err := a.GetStats(a.Reset)
 	if err != nil {
 		slog.Error("failed to get stats", "error", err)
 		http.Error(w, "failed to get stats", http.StatusInternalServerError)
@@ -220,7 +220,7 @@ func (a *App) StatsHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("JumpgatesHandler")
-	gates, err := a.GetJumpgates()
+	gates, err := a.GetJumpgates(a.Reset)
 	if err != nil {
 		slog.Error("failed to get jumpgates", "error", err)
 		http.Error(w, "failed to get jumpgates", http.StatusInternalServerError)

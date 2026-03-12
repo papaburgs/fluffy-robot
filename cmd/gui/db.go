@@ -11,11 +11,11 @@ import (
 )
 
 // GetAgentRecordsFromDB reads agent history from Turso DB.
-func (a *App) GetAgentRecordsFromDB(symbol string, duration time.Duration) ([]types.AgentRecord, error) {
+func (a *App) GetAgentRecordsFromDB(symbol string, reset string, duration time.Duration) ([]types.AgentRecord, error) {
 	records := []types.AgentRecord{}
 	startTime := time.Now().Add(-duration).Unix()
 
-	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agentstatus WHERE symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", symbol, startTime)
+	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agentstatus WHERE reset = ? AND symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", reset, symbol, startTime)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query agent history: %w", err)
 	}
@@ -37,13 +37,13 @@ func (a *App) GetAgentRecordsFromDB(symbol string, duration time.Duration) ([]ty
 }
 
 // GetConstructionRecordsFromDB retrieves jumpgate construction progress history.
-func (a *App) GetConstructionRecordsFromDB(agents []string, duration time.Duration) (map[string][]types.ConstructionRecord, error) {
+func (a *App) GetConstructionRecordsFromDB(agents []string, reset string, duration time.Duration) (map[string][]types.ConstructionRecord, error) {
 	res := make(map[string][]types.ConstructionRecord)
 	startTime := time.Now().Add(-duration).Unix()
 
 	for _, agent := range agents {
 		var hq string
-		err := a.DB.QueryRow("SELECT headquarters FROM agents WHERE reset = ? AND symbol = ?", a.Reset, agent).Scan(&hq)
+		err := a.DB.QueryRow("SELECT headquarters FROM agents WHERE reset = ? AND symbol = ?", reset, agent).Scan(&hq)
 		if err != nil {
 			continue
 		}
@@ -54,7 +54,7 @@ func (a *App) GetConstructionRecordsFromDB(agents []string, duration time.Durati
 		system := parts[0] + "-" + parts[1]
 
 		var jg string
-		err = a.DB.QueryRow("SELECT jumpgate FROM jumpgates WHERE reset = ? AND system = ? AND status IN (2, 3)", a.Reset, system).Scan(&jg)
+		err = a.DB.QueryRow("SELECT jumpgate FROM jumpgates WHERE reset = ? AND system = ? AND status IN (2, 3)", reset, system).Scan(&jg)
 		if err != nil {
 			continue
 		}
@@ -64,7 +64,7 @@ func (a *App) GetConstructionRecordsFromDB(agents []string, duration time.Durati
 			continue
 		}
 
-		rows, err := a.DB.Query("SELECT timestamp, fabmat, advcct FROM construction WHERE reset = ? AND jumpgate = ? AND timestamp >= ? ORDER BY timestamp ASC", a.Reset, jg, startTime)
+		rows, err := a.DB.Query("SELECT timestamp, fabmat, advcct FROM construction WHERE reset = ? AND jumpgate = ? AND timestamp >= ? ORDER BY timestamp ASC", reset, jg, startTime)
 		if err != nil {
 			slog.Error("failed to query construction records", "jg", jg, "error", err)
 			continue
@@ -92,12 +92,12 @@ func (a *App) GetConstructionRecordsFromDB(agents []string, duration time.Durati
 }
 
 // GetLatestConstructionRecords retrieves the most recent construction progress for a set of agents.
-func (a *App) GetLatestConstructionRecords(agents []string) ([]types.ConstructionOverview, error) {
+func (a *App) GetLatestConstructionRecords(agents []string, reset string) ([]types.ConstructionOverview, error) {
 	results := []types.ConstructionOverview{}
 
 	for _, agent := range agents {
 		var hq string
-		err := a.DB.QueryRow("SELECT headquarters FROM agents WHERE reset = ? AND symbol = ?", a.Reset, agent).Scan(&hq)
+		err := a.DB.QueryRow("SELECT headquarters FROM agents WHERE reset = ? AND symbol = ?", reset, agent).Scan(&hq)
 		if err != nil {
 			continue
 		}
@@ -108,14 +108,14 @@ func (a *App) GetLatestConstructionRecords(agents []string) ([]types.Constructio
 		system := parts[0] + "-" + parts[1]
 
 		var jg string
-		err = a.DB.QueryRow("SELECT jumpgate FROM jumpgates WHERE reset = ? AND system = ? AND status IN (2, 3)", a.Reset, system).Scan(&jg)
+		err = a.DB.QueryRow("SELECT jumpgate FROM jumpgates WHERE reset = ? AND system = ? AND status IN (2, 3)", reset, system).Scan(&jg)
 		if err != nil {
 			continue
 		}
 
 		var ts int64
 		var fab, adv int
-		err = a.DB.QueryRow("SELECT timestamp, fabmat, advcct FROM construction WHERE reset = ? AND jumpgate = ? ORDER BY timestamp DESC LIMIT 1", a.Reset, jg).Scan(&ts, &fab, &adv)
+		err = a.DB.QueryRow("SELECT timestamp, fabmat, advcct FROM construction WHERE reset = ? AND jumpgate = ? ORDER BY timestamp DESC LIMIT 1", reset, jg).Scan(&ts, &fab, &adv)
 		if err != nil {
 			continue
 		}
@@ -132,20 +132,15 @@ func (a *App) GetLatestConstructionRecords(agents []string) ([]types.Constructio
 }
 
 // GetAllAgentsFromDB returns all agents and their active status from Turso DB.
-func (a *App) GetAllAgentsFromDB() (map[string]AgentStatus, error) {
-	l := slog.With("function", "GetAllAgentsFromDB")
+func (a *App) GetAllAgentsFromDB(reset string) (map[string]AgentStatus, error) {
 	res := make(map[string]AgentStatus)
 	// We use the stored Reset in App struct which should be updated periodically or at start
-	if a.Reset == "" {
-		l.Error("failed to get reset for GetAllAgentsFromDB")
-		return nil, fmt.Errorf("reset not set in App struct")
-	}
 
 	rows, err := a.DB.Query(`
 		SELECT symbol, credits 
 		FROM agents 
 		WHERE reset = ? 
-	`, a.Reset)
+	`, reset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query agents: %w", err)
 	}
@@ -166,10 +161,7 @@ func (a *App) GetAllAgentsFromDB() (map[string]AgentStatus, error) {
 }
 
 // GetStats returns the latest server stats for the current reset.
-func (a *App) GetStats() (map[string]interface{}, error) {
-	if a.Reset == "" {
-		return nil, fmt.Errorf("reset not set in App struct")
-	}
+func (a *App) GetStats(reset string) (map[string]interface{}, error) {
 
 	var marketUpdate time.Time
 	var agents, accounts, ships, systems, waypoints int
@@ -180,14 +172,14 @@ func (a *App) GetStats() (map[string]interface{}, error) {
 		SELECT marketUpdate, agents, accounts, ships, systems, waypoints, status, version, nextReset
 		FROM stats
 		WHERE reset = ?
-	`, a.Reset).Scan(&marketUpdate, &agents, &accounts, &ships, &systems, &waypoints, &status, &version, &nextReset)
+	`, reset).Scan(&marketUpdate, &agents, &accounts, &ships, &systems, &waypoints, &status, &version, &nextReset)
 
 	if err != nil {
 		return nil, err
 	}
 
 	return map[string]interface{}{
-		"reset":        a.Reset,
+		"reset":        reset,
 		"marketUpdate": marketUpdate,
 		"agents":       agents,
 		"accounts":     accounts,
@@ -202,7 +194,7 @@ func (a *App) GetStats() (map[string]interface{}, error) {
 
 // GetLeaderboard returns the leaderboard for the current reset.
 // type can be 'credits' or 'charts'.
-func (a *App) GetLeaderboard(leaderboardType string) ([]map[string]interface{}, error) {
+func (a *App) GetLeaderboard(leaderboardType string, reset string) ([]map[string]interface{}, error) {
 	slog.Debug("getting leaderboard details", "type", leaderboardType)
 	if a.Reset == "" {
 		return nil, fmt.Errorf("reset not set in App struct")
@@ -213,7 +205,7 @@ func (a *App) GetLeaderboard(leaderboardType string) ([]map[string]interface{}, 
 		SELECT credits, charts
 		FROM leaderboard
 		WHERE reset = ?
-	`, a.Reset).Scan(&credits, &charts)
+	`, reset).Scan(&credits, &charts)
 	if err != nil {
 		return nil, err
 	}
@@ -248,19 +240,14 @@ func (a *App) GetLeaderboard(leaderboardType string) ([]map[string]interface{}, 
 }
 
 // GetJumpgates returns all jumpgates for the current reset.
-func (a *App) GetJumpgates() ([]map[string]interface{}, error) {
-	l := slog.With("function", "GetJumpgates")
-	l.Info("check")
-	if a.Reset == "" {
-		return nil, fmt.Errorf("reset not set in App struct")
-	}
+func (a *App) GetJumpgates(reset string) ([]map[string]interface{}, error) {
 
 	rows, err := a.DB.Query(`
 		SELECT system, headquarters, jumpgate, completetimestamp, status
 		FROM jumpgates
 		WHERE reset = ?
 		ORDER BY system ASC
-	`, a.Reset)
+	`, reset)
 	if err != nil {
 		return nil, err
 	}
@@ -298,5 +285,3 @@ func (a *App) GetJumpgates() ([]map[string]interface{}, error) {
 	}
 	return results, nil
 }
-
-
