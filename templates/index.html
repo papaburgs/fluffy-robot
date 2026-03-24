@@ -1,99 +1,269 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8">
-        <title>Fluffy Robot Dashboard</title>
-        <script src="https://unpkg.com/htmx.org@1.9.10"></script>
-        <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
-        <link rel="stylesheet" href="static/style.css">
-    </head>
-    <body>
-        <header>
-        </header>
-        <nav>
-            <div {{if .AgentVals}}
-                hx-vals='{"paramAgents": "{{printf `%s` .AgentVals}}"}'
-                {{end}}
-                >
-                <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'>
-                    <span>
-                        Time range: 
-                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"1h"}'  hx-target="#chart-content">Last 1h</button>
-                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"4h"}'  hx-target="#chart-content">Last 4h</button>
-                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"24h"}' hx-target="#chart-content">Last 24h</button>
-                        <button class="time-button" hx-get="/chart" hx-vals='{"period":"7d"}'  hx-target="#chart-content">Last 7d</button>
-                    </span>
-                    <span>
-                        <button class="config-button" hx-get="/agents" hx-target="#chart-content" aria-label="Configuration">&#x2699;</button>
-                    </span>
-                </div>
-            </div>
-        </nav>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fluffy Robot Dashboard</title>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
+    <link rel="stylesheet" href="static/style.css" />
+  </head>
+  <body class="space-theme">
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="sidebar">
+      <div class="sidebar-header">
+        <h3>Fluffy Robot</h3>
+      </div>
+      <nav class="sidebar-nav">
+        <!-- Time range buttons -->
+        <button
+          class="time-btn"
+          data-period="1h"
+          hx-get="/chart"
+          hx-vals='js:{period: "1h", storageAgents: localStorage.getItem("selected-agents") || ""}'
+          hx-target="#chart-content"
+        >
+          Last 1h
+        </button>
+        <button
+          class="time-btn"
+          data-period="4h"
+          hx-get="/chart"
+          hx-vals='js:{period: "4h", storageAgents: localStorage.getItem("selected-agents") || ""}'
+          hx-target="#chart-content"
+        >
+          Last 4h
+        </button>
+        <button
+          class="time-btn"
+          data-period="24h"
+          hx-get="/chart"
+          hx-vals='js:{period: "24h", storageAgents: localStorage.getItem("selected-agents") || ""}'
+          hx-target="#chart-content"
+        >
+          Last 24h
+        </button>
+        <button
+          class="time-btn"
+          data-period="7d"
+          hx-get="/chart"
+          hx-vals='js:{period: "7d", storageAgents: localStorage.getItem("selected-agents") || ""}'
+          hx-target="#chart-content"
+        >
+          Last 7d
+        </button>
+        <!-- Config button -->
+        <button class="config-btn" hx-get="/agents" hx-vals='js:{storageAgents: localStorage.getItem("selected-agents") || ""}' hx-target="#chart-content">
+          ⚙️ Config
+        </button>
+      </nav>
+    </aside>
 
-        <main>   
-            <div id="chart-content">
-                Click a filter button to load a chart.
-            </div>
-        </main>
-<footer>
+    <!-- Main Content Area -->
+    <main id="main-content">
+      <!-- Mobile Header -->
+      <header class="mobile-header">
+        <button id="menu-toggle" aria-label="Toggle Menu">☰</button>
+        <h1>Fluffy Robot</h1>
+      </header>
+
+      <!-- Chart Container -->
+      <div id="chart-content" class="chart-container">
+        <div class="chart-placeholder">
+          <div class="chart-placeholder-content">
+            <svg
+              width="64"
+              height="64"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#3182ce"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M3 3v18h18"></path>
+              <path d="M18.5 8l-5.5 5.5-3.5-3.5-4.5 4.5"></path>
+            </svg>
+            <p>Click a time range button above to load a chart</p>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- Overlay for mobile sidebar -->
+    <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
+
+   <script>
+      const AGENT_STORAGE_KEY = "selected-agents";
+      const CLASS_SELECTED = "agent-selected";
+      const CLASS_UNSELECTED = "agent-unselected";
+      const CLASS_TIME_ACTIVE = "time-active";
+
+      // Sidebar Toggle for Mobile
+      function toggleSidebar() {
+        const sidebar = document.getElementById("sidebar");
+        const overlay = document.getElementById("sidebar-overlay");
+
+        sidebar.classList.toggle("visible");
+        overlay.classList.toggle("visible");
+
+        // Update hamburger icon
+        const menuToggle = document.getElementById("menu-toggle");
+        if (sidebar.classList.contains("visible")) {
+          menuToggle.textContent = "✕";
+        } else {
+          menuToggle.textContent = "☰";
+        }
+      }
+
+      // Close sidebar when clicking overlay
+      function closeSidebarOnOverlay(e) {
+        if (e.target.id === "sidebar-overlay") {
+          toggleSidebar();
+        }
+      }
+
+      // Close sidebar when clicking main content (mobile only)
+      function closeSidebarOnMainContent() {
+        const sidebar = document.getElementById("sidebar");
+
+        if (sidebar.classList.contains("visible")) {
+          toggleSidebar();
+        }
+      }
+
+      // Agent Toggle Selection
+      function toggleAgentSelection(agentName) {
+        const agentButton = document.getElementById(`btn-${agentName}`);
+
+        if (!agentButton) {
+          console.error(`Button for agent ${agentName} not found.`);
+          return;
+        }
+
+        let selectedAgents = (localStorage.getItem(AGENT_STORAGE_KEY) || "")
+          .split(",")
+          .filter(Boolean);
+        const agentIndex = selectedAgents.indexOf(agentName);
+        const isCurrentlySelected = agentIndex > -1;
+
+        let newAction;
+
+        if (isCurrentlySelected) {
+          selectedAgents.splice(agentIndex, 1);
+          newAction = "remove";
+        } else {
+          selectedAgents.push(agentName);
+          newAction = "add";
+        }
+
+        localStorage.setItem(AGENT_STORAGE_KEY, selectedAgents.join(","));
+
+        if (newAction === "add") {
+          agentButton.classList.add(CLASS_SELECTED);
+          agentButton.classList.remove(CLASS_UNSELECTED);
+        } else {
+          agentButton.classList.add(CLASS_UNSELECTED);
+          agentButton.classList.remove(CLASS_SELECTED);
+        }
+
+        console.log(
+          `Agent ${agentName} ${newAction}ed. Stored list: ${selectedAgents.join(",")}`,
+        );
+      }
+
+     
+
+      // Time Range Button Handler
+      function updateTimeRangeButtons(activeBtn) {
+        document.querySelectorAll(".time-btn").forEach((btn) => {
+          btn.classList.remove(CLASS_TIME_ACTIVE);
+        });
+        if (activeBtn) {
+          activeBtn.classList.add(CLASS_TIME_ACTIVE);
+        }
+      }
+
+      // Initialize on DOM loaded
+      document.addEventListener("DOMContentLoaded", () => {
+        // Mobile menu toggle
+        const menuToggle = document.getElementById("menu-toggle");
+        const overlay = document.getElementById("sidebar-overlay");
+        const mainContent = document.getElementById("main-content");
+
+        if (menuToggle) {
+          menuToggle.addEventListener("click", function (e) {
+            e.stopPropagation();
+            toggleSidebar();
+          });
+        }
+
+        if (overlay) {
+          overlay.addEventListener("click", closeSidebarOnOverlay);
+        }
+
+        if (mainContent) {
+          mainContent.addEventListener("click", closeSidebarOnMainContent);
+        }
+
+        // Time range button active state
+        document.querySelectorAll(".time-btn").forEach((btn) => {
+          btn.addEventListener("click", function () {
+            updateTimeRangeButtons(this);
+          });
+        });
+
+        // HTMX chart initialization
+        document.body.addEventListener("htmx:afterOnLoad", function () {
+          const chartContent = document.getElementById("chart-content");
+          if (chartContent) {
+            const scripts = chartContent.querySelectorAll("script");
+            scripts.forEach((script) => {
+              const newScript = document.createElement("script");
+              if (script.src) {
+                newScript.src = script.src;
+              } else {
+                newScript.text = script.text;
+              }
+              document.body.appendChild(newScript);
+            });
+          }
+        });
+      });
+
+      // ECharts resize handler for responsive charts
+      let chartResizeTimeout;
+      window.addEventListener("resize", function () {
+        clearTimeout(chartResizeTimeout);
+        chartResizeTimeout = setTimeout(function () {
+          if (typeof echarts !== "undefined" && echarts.init) {
+            const charts = echarts.getInstanceByDom(
+              document.getElementById("chart-content"),
+            );
+            if (charts) {
+              charts.resize();
+            }
+          }
+        }, 250);
+      });
+    </script>
+  </body>
+  <footer>
     <p>Spacetraders Credit Report - 2025</p>
     <div class="footer-links">
-        <a href="https://github.com/papaburgs/fluffy-robot" target="_blank" rel="noopener noreferrer">GitHub</a>
-        <a href="https://railway.com?referralCode=-I-osp" target="_blank" rel="noopener noreferrer">Hosted on Railway</a>
-        <a href="/documentation">Documentation/About</a>
+      <a
+        href="https://github.com/papaburgs/fluffy-robot"
+        target="_blank"
+        rel="noopener noreferrer"
+        >GitHub</a
+      >
+      <a
+        href="https://railway.com?referralCode=-I-osp"
+        target="_blank"
+        rel="noopener noreferrer"
+        >Hosted on Railway</a
+      >
+      <a href="/documentation">Documentation/About</a>
     </div>
-</footer>
-        <script>
-            const AGENT_STORAGE_KEY = 'selected-agents';
-            const CLASS_SELECTED = 'agent-selected';
-            const CLASS_UNSELECTED = 'agent-unselected';
-
-            function toggleAgentSelection(agentName) {
-                const agentButton = document.getElementById(`btn-${agentName}`);
-
-                if (!agentButton) {
-                    console.error(`Button for agent ${agentName} not found.`);
-                    return;
-                }
-
-                let selectedAgents = (localStorage.getItem(AGENT_STORAGE_KEY) || '').split(',').filter(Boolean);
-                const agentIndex = selectedAgents.indexOf(agentName);
-                const isCurrentlySelected = agentIndex > -1;
-
-                let newAction; // 'add' or 'remove'
-
-                if (isCurrentlySelected) {
-                    // Agent is currently selected -> REMOVE it
-                    selectedAgents.splice(agentIndex, 1);
-                    newAction = 'remove';
-                } else {
-                    // Agent is NOT selected -> ADD it
-                    selectedAgents.push(agentName);
-                    newAction = 'add';
-                }
-
-                localStorage.setItem(AGENT_STORAGE_KEY, selectedAgents.join(','));
-
-                if (newAction === 'add') {
-                    agentButton.classList.add(CLASS_SELECTED);
-                    agentButton.classList.remove(CLASS_UNSELECTED);
-                } else { // 'remove'
-                    agentButton.classList.add(CLASS_UNSELECTED);
-                    agentButton.classList.remove(CLASS_SELECTED);
-                }
-
-                console.log(`Agent ${agentName} ${newAction}ed. Stored list: ${selectedAgents.join(',')}`);
-            }
-
-            function getStoredAgentsForHxVals() {
-                // Get the string from localStorage
-                const savedAgents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
-                console.log("this got called")
-                console.log(savedAgents)
-                // Format the string for hx-vals: 'agentList:Alpha,Charlie'
-                return `${savedAgents}`;
-            }
-        </script>
-    </body>
+  </footer>
 </html>
-

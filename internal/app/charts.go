@@ -13,7 +13,7 @@ import (
 	"github.com/go-echarts/go-echarts/v2/render"
 )
 
-func (a *App) Last24CreditChart(agents []string) *charts.Line {
+func (a *App) Last24CreditChart(agents []string, isMobile bool) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
@@ -26,13 +26,12 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min: 0,
-			// Max: 200,
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
 			Min:  tfha,
 		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
+		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
@@ -47,8 +46,18 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 			continue
 		}
 		items := make([]opts.LineData, 0)
+
+		// Mobile data reduction
+		stride := 1
+		if isMobile && len(hist) > 100 {
+			stride = len(hist) / 100
+			if stride < 1 {
+				stride = 1
+			}
+		}
+
 		for i, r := range hist {
-			if i%10 == 0 {
+			if i%stride == 0 {
 				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
 			}
 		}
@@ -57,7 +66,7 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	return line
 }
 
-func (a *App) Last4CreditChart(agents []string) *charts.Line {
+func (a *App) Last4CreditChart(agents []string, isMobile bool) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-4 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
@@ -70,13 +79,12 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min: 0,
-			// Max: 200,
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
 			Min:  tfha,
 		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
+		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
@@ -91,8 +99,18 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 			continue
 		}
 		items := make([]opts.LineData, 0)
+
+		// Mobile data reduction
+		stride := 1
+		if isMobile && len(hist) > 80 {
+			stride = len(hist) / 80
+			if stride < 1 {
+				stride = 1
+			}
+		}
+
 		for i, r := range hist {
-			if i%2 == 0 {
+			if i%stride == 0 {
 				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
 			}
 		}
@@ -102,7 +120,7 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 	return line
 }
 
-func (a *App) Last1CreditChart(agents []string) *charts.Line {
+func (a *App) Last1CreditChart(agents []string, isMobile bool) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-1 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
@@ -115,13 +133,12 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min: 0,
-			// Max: 200,
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
 			Min:  tfha,
 		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
+		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
@@ -136,8 +153,20 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 			continue
 		}
 		items := make([]opts.LineData, 0)
-		for _, r := range hist {
-			items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+
+		// Mobile data reduction
+		stride := 1
+		if isMobile && len(hist) > 60 {
+			stride = len(hist) / 60
+			if stride < 1 {
+				stride = 1
+			}
+		}
+
+		for i, r := range hist {
+			if i%stride == 0 {
+				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+			}
 		}
 		line.AddSeries(p, items)
 	}
@@ -145,7 +174,7 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 	return line
 }
 
-func (a *App) Last7dCreditChart(agents []string) *charts.Line {
+func (a *App) Last7dCreditChart(agents []string, isMobile bool) *charts.Line {
 	line := charts.NewLine()
 	weekAgoMs := int(time.Now().Add(-7 * 24 * time.Hour).UnixMilli())
 
@@ -160,10 +189,9 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 		charts.WithTooltipOpts(opts.Tooltip{Show: opts.Bool(true), Trigger: "axis"}),
 	)
 
-	// Adaptive stride to keep point count reasonable
 	totalPerHour := a.collectPointsPerHour
 	if totalPerHour == 0 {
-		totalPerHour = 12 // assume 5-min cadence
+		totalPerHour = 12
 	}
 	estimatedTotal := 7 * 24 * totalPerHour
 	targetPoints := 200
@@ -184,6 +212,15 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 			slog.Error("error getting agent records", "error", err)
 			continue
 		}
+
+		// Additional mobile reduction
+		if isMobile && len(hist) > 300 {
+			mobileStride := len(hist) / 300
+			if mobileStride > stride {
+				stride = mobileStride
+			}
+		}
+
 		items := make([]opts.LineData, 0, len(hist)/stride+1)
 		for i, r := range hist {
 			if i%stride == 0 {
@@ -195,21 +232,6 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	return line
 }
 
-// func RenderLineChart(w http.ResponseWriter) {
-// 	line := charts.NewLine()
-// 	line.SetGlobalOptions(
-// 		charts.WithTitleOpts(opts.Title{Title: "Simple Line Chart"}),
-// 	)
-//
-// 	line.AddSeries("Category A", []opts.LineData{
-// 		{Value: 10}, {Value: 20}, {Value: 30}, {Value: 40},
-// 	})
-//
-// 	// Render only the chart div and script
-// 	RenderChartFragment(w, line)
-// }
-
-// RenderChartFragment renders a go-echarts chart as a fragment (div + script) to the ResponseWriter.
 func (a *App) RenderChartFragment(w io.Writer, chart render.Renderer) error {
 	snippet := chart.RenderSnippet()
 

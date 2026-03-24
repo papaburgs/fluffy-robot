@@ -50,18 +50,21 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	agents := mergeAgents(storageAgents, paramAgents)
 	var line *charts.Line
 
+	// Detect mobile browser
+	isMobile := isMobileBrowser(r)
+
 	// Read period from query and select chart.
 	period := q.Get("period")
-	slog.Info("Incoming request", "endpoint", "chart", "period", period)
+	slog.Info("Incoming request", "endpoint", "chart", "period", period, "isMobile", isMobile)
 	switch period {
 	case "24h":
-		line = a.Last24CreditChart(agents)
+		line = a.Last24CreditChart(agents, isMobile)
 	case "4h":
-		line = a.Last4CreditChart(agents)
+		line = a.Last4CreditChart(agents, isMobile)
 	case "7d":
-		line = a.Last7dCreditChart(agents)
+		line = a.Last7dCreditChart(agents, isMobile)
 	default:
-		line = a.Last1CreditChart(agents)
+		line = a.Last1CreditChart(agents, isMobile)
 
 	}
 
@@ -71,7 +74,15 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 func (a *App) AgentsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("AgentsHandler")
-	a.t.ExecuteTemplate(w, "agentlistpage.html", nil)
+	storageAgents := r.URL.Query().Get("storageAgents")
+	slog.Debug("storageAgents from query", "agents", storageAgents)
+	d := struct {
+		StorageAgents string
+	}{
+		StorageAgents: storageAgents,
+	}
+	slog.Debug("executing template with storageAgents", "agents", storageAgents)
+	a.t.ExecuteTemplate(w, "agentlistpage.html", d)
 }
 
 func (a *App) HeaderHandler(w http.ResponseWriter, r *http.Request) {
@@ -113,6 +124,9 @@ func (a *App) AgentListHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("search", "agentSearch", searchStr)
 	storageAgentsMap := make(map[string]bool)
 	storageAgentsParam := r.URL.Query().Get("storageAgents")
+	if storageAgentsParam == "" {
+		storageAgentsParam = r.Header.Get("X-Storage-Agents")
+	}
 	slog.Debug("stored agents", "agents", storageAgentsParam)
 	for _, i := range strings.Split(storageAgentsParam, ",") {
 		storageAgentsMap[i] = true

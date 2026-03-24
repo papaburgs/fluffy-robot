@@ -1,20 +1,22 @@
-<h2>Available Agents</h2>
-<form id="agent-form">
-    <p>
-    <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'>
-        Search for agents:
+<div id="agent-list-container" class="agent-list-container" data-storage-agents="{{.StorageAgents}}">
+    <h2>Available Agents</h2>
+    <div class="search-container">
         <input class="form-control" type="search"
-        name="agentSearch" 
-        placeholder="Begin Typing To Search Users..."
-        hx-get="/agentlist"
-        hx-trigger="input changed delay:500, keyup[key=='Enter'], load"
-        hx-target="#buttons"
-        hx-swap="innerHTML"
-        hx-indicator=".htmx-indicator">
+               name="agentSearch"
+               placeholder="Begin Typing To Search Users..."
+               hx-get="/agentlist"
+               hx-vals='js:{storageAgents: document.getElementById("agent-list-container")?.getAttribute("data-storage-agents") || ""}'
+               hx-trigger="input changed delay:500, keyup[key=='Enter'], load"
+               hx-target="#agent-grid"
+               hx-swap="innerHTML"
+               hx-indicator=".htmx-indicator">
         <span class="htmx-indicator">
             <img src="/static/bars.svg" alt=""/> Searching...
         </span>
-    </p>
-    <div id="buttons"></div>
     </div>
-</form>
+    <div id="agent-grid" class="agent-grid">
+        <div class="no-agents">
+            <p>No agents loaded yet. Please wait while data is being collected.</p>
+        </div>
+    </div>
+</div>

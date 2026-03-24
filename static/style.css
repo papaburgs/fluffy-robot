@@ -1,218 +1,642 @@
+/* ==================
+   SPACE THEME COLORS
+   ================== */
+:root {
+  --space-black: #0a0e17;
+  --space-dark: #1a1f35;
+  --space-medium: #2a3b5c;
+  --neptune-blue: #3182ce;
+  --nebula-purple: #805ad5;
+  --star-white: #e2e8f0;
+  --text-gray: #e0e0e0;
+  --border-color: #2d3748;
+  --sidebar-width: 220px;
+}
+
+/* =============
+   GLOBAL RESET
+   ============= */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* =============
+   BASE STYLES
+   ============= */
 body {
-    /* Use a slightly softer dark gray for the background */
-    background-color: #121212;
-    color: #E0E0E0; /* Light gray for main text color */
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; /* A more modern, clean font */
+  background-color: var(--space-black);
+  color: var(--text-gray);
+  font-family:
+    "Segoe UI",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    Roboto,
+    sans-serif;
+  height: 100vh;
+  margin: 0;
+  overflow: hidden;
+  line-height: 1.6;
+}
+
+/* ==================
+   SIDEBAR NAVIGATION
+   ================== */
+.sidebar {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: var(--sidebar-width);
+  height: 100vh;
+  background: linear-gradient(
+    180deg,
+    var(--space-dark) 0%,
+    var(--space-black) 100%
+  );
+  border-right: 1px solid var(--border-color);
+  padding: 20px 0;
+  z-index: 1000;
+  display: flex;
+  flex-direction: column;
+
+  /* Desktop: always visible */
+  @media (min-width: 768px) {
     display: flex;
-    flex-direction: column;
-    height: 100vh;
+  }
+
+  /* Mobile: hidden by default */
+  @media (max-width: 767px) {
+    position: fixed;
+    left: calc(-1 * var(--sidebar-width));
+    transition: left 0.3s ease-out;
+    box-shadow: 4px 0 12px rgba(0, 0, 0, 0.5);
+
+    &.visible {
+      left: 0;
+    }
+  }
+}
+
+.sidebar-header {
+  padding: 0 20px 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 20px;
+
+  h3 {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--star-white);
+    letter-spacing: 1px;
+  }
+}
+
+.sidebar-nav {
+  padding: 0 10px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* =================
+   TIME RANGE BUTTONS
+   ================= */
+.time-btn {
+  width: 100%;
+  padding: 16px 20px;
+  margin-bottom: 10px;
+  background: var(--space-medium);
+  color: var(--star-white);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 3px;
+    height: 100%;
+    background: var(--neptune-blue);
+    transform: scaleY(0);
+    transition: transform 0.2s ease;
+  }
+
+  &:hover {
+    background: #3a4b7c;
+    transform: translateX(5px);
+  }
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &.time-active {
+    background: var(--neptune-blue);
+    border-color: var(--nebula-purple);
+    box-shadow: 0 0 10px rgba(49, 130, 206, 0.3);
+
+    &::before {
+      transform: scaleY(1);
+    }
+  }
+
+  @media (min-width: 768px) {
+    font-size: 13px;
+    padding: 14px 16px;
+    margin-bottom: 8px;
+  }
+}
+
+/* ================
+   CONFIG BUTTON
+   ================ */
+.config-btn {
+  width: 100%;
+  padding: 16px 20px;
+  background: var(--space-medium);
+  color: var(--text-gray);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: #3a4b7c;
+    color: var(--star-white);
+  }
+
+  @media (min-width: 768px) {
+    font-size: 14px;
+    padding: 14px 16px;
+  }
+}
+
+/* ===================
+   MAIN CONTENT AREA
+   =================== */
+#main-content {
+  margin-left: var(--sidebar-width);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+
+  /* Desktop: no margin */
+  @media (min-width: 1024px) {
+    margin-left: var(--sidebar-width);
+  }
+
+  /* Tablet/Mobile: no margin */
+  @media (max-width: 767px) {
+    margin-left: 0;
+  }
+}
+
+/* =================
+   MOBILE HEADER
+   ================= */
+.mobile-header {
+  display: none;
+  align-items: center;
+  padding: 15px 20px;
+  background: var(--space-dark);
+  border-bottom: 1px solid var(--border-color);
+  z-index: 999;
+
+  #menu-toggle {
+    font-size: 24px;
+    background: transparent;
+    color: var(--star-white);
+    border: none;
+    cursor: pointer;
+    margin-right: 15px;
+    padding: 5px;
+    line-height: 1;
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+    transition: background 0.2s;
+
+    &:hover {
+      background: var(--space-medium);
+    }
+  }
+
+  h1 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--star-white);
     margin: 0;
-}
+  }
 
-header {
-}
-
-.main-container {
+  @media (max-width: 767px) {
     display: flex;
-    flex: 1;
+  }
 }
 
+/* ==================
+   DESKTOP NAVIGATION
+   ================== */
+.desktop-nav {
+  display: none;
+  padding: 15px 20px;
+  background: var(--space-dark);
+  border-bottom: 1px solid var(--border-color);
 
-/* --- Content Area Styling --- */
-#content {
-    flex: 1;
-    padding: 20px;
-    color: #D3D3D3; /* Slightly off-white for content text */
-}
-
-#chart {
-    padding: 30px;
-    background-color: #242424; /* Background for the chart area */
-    border-radius: 8px; /* Rounded corners for the chart area */
-    box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.3);
-}
-
-nav {
-    padding: 15px 20px;
-    background: #1F3C88;
-    color: #FFFFFF;
-    font-size: 1.5em;
-    font-weight: bold;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  .nav-content {
     display: flex;
-    flex-direction: row;
-    margin: 15px;
-    /* Ensure the nav bar content is vertically centered */
-    align-items: center; 
-    /* The children should take up the available width */
-    width: auto; /* Or 100% depending on desired width */
-}
-/* Target the div that contains the Time range and Config spans */
-/* This corresponds to: <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals()}'> */
-nav > div > div {
-    display: flex;
-    /* This pushes the first span (Time range) to the left and the second span (Config) to the far right */
     justify-content: space-between;
-    /* Center items vertically within this container */
-    align-items: center; 
-    /* Ensure it takes the full width of the nav to allow space-between to work */
-    width: 100%; 
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 15px;
+  }
+
+  span {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  @media (min-width: 1024px) {
+    display: block;
+  }
 }
 
-/* Ensure the outer div also takes up the width */
-nav > div {
-    width: 100%;
+/* =================
+   CHART CONTAINER
+   ================= */
+.chart-container {
+  flex: 1;
+  padding: 20px;
+  overflow-y: auto;
+  min-height: 400px;
+  position: relative;
+
+  /* Mobile padding */
+  @media (max-width: 767px) {
+    padding: 10px;
+    min-height: 300px;
+  }
 }
 
-.time-button {
-    width: 100%;
-    margin: 1px 10px 8px;
-    padding: 12px;
-    border: none;
-    background-color: #3A3A3A; /* Dark gray background */
-    color: #FFFFFF;
-    text-align: left;
-    cursor: pointer;
-    border-radius: 20px; /* **More rounded** */
-    transition: background-color 0.2s, transform 0.1s;
-  width: 120px;
-  
-  flex-shrink: 0; 
-  flex-grow: 0;
-  text-align: center;
-  
-  /* height: 60px;  */
-  white-space: nowrap; 
+.chart-content-wrapper {
+  width: 100%;
+  min-height: 400px;
+
+  @media (max-width: 767px) {
+    min-height: 300px;
+  }
 }
-.config-button {
-    /* Set a fixed size for the icon button */
-    width: 40px; 
-    height: 40px;
-    
-    /* Style the appearance */
-    border: none;
-    background-color: transparent; /* Make background transparent */
-    color: #FFFFFF;
+
+.chart-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  color: var(--text-gray);
+
+  .chart-placeholder-content {
     text-align: center;
-    cursor: pointer;
-    border-radius: 50%; /* Make it perfectly circular */
-    font-size: 1.8em; /* Make the gear icon larger */
-    padding: 0; /* Remove default padding */
-    line-height: 40px; /* Vertically center the icon */
-    
-    transition: background-color 0.2s;
 
-    /* Removed unnecessary flex properties for a simple button */
-    flex-shrink: 0; 
-    flex-grow: 0; 
-    white-space: nowrap; 
+    svg {
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    p {
+      font-size: 16px;
+      color: var(--text-gray);
+      opacity: 0.7;
+    }
+  }
+
+  @media (max-width: 767px) {
+    min-height: 300px;
+  }
 }
 
-.config-button:hover {
-    background-color: rgba(255, 255, 255, 0.2); /* Subtle hover effect */
+/* ==================
+   SWIPE NAVIGATION
+   ================== */
+.swipe-nav {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 15px;
+  z-index: 999;
+
+  @media (min-width: 768px) {
+    display: none;
+  }
 }
 
-.time-button:hover {
-    background-color: #555555;
-    transform: translateY(-1px);
+.swipe-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--space-dark);
+  border: 2px solid var(--neptune-blue);
+  color: var(--star-white);
+  font-size: 24px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+
+  &:hover {
+    background: var(--neptune-blue);
+    transform: scale(1.05);
+  }
+
+  &:active {
+    transform: scale(0.95);
+  }
 }
 
-.time-button {
+/* ===================
+   AGENT LIST CONTAINER
+   =================== */
+.agent-list-container {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+
+  h2 {
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: var(--star-white);
+  }
+
+  .search-container {
+    position: relative;
+    margin-bottom: 20px;
+
+    .form-control {
+      width: 100%;
+      padding: 14px 16px;
+      background: var(--space-medium);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-gray);
+      font-size: 16px;
+      transition: border-color 0.2s;
+
+      &:focus {
+        outline: none;
+        border-color: var(--neptune-blue);
+      }
+
+      @media (max-width: 767px) {
+        padding: 12px 14px;
+        font-size: 14px;
+      }
+    }
+
+    .htmx-indicator {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      opacity: 0.7;
+    }
+  }
+
+  .agent-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-top: 20px;
+
+    @media (min-width: 768px) {
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    }
+  }
+
+  .no-agents {
+    padding: 40px;
+    text-align: center;
+    background: var(--space-medium);
+    border-radius: 8px;
+    border: 1px dashed var(--border-color);
+
+    p {
+      color: var(--text-gray);
+      opacity: 0.7;
+    }
+  }
 }
 
-
-/* --- Agent List Styling --- */
-.agent-list {
-    margin-top: 30px;
-    border-top: 1px solid #333; /* Darker border */
-    padding-top: 15px;
-      flex: 1 1 100px; 
-  /* Also consider setting a min-width for very small screens */
-  min-width: 80px; 
-  text-align: center;
-}
-
-/* --- BASE STYLES & INTERACTIVITY --- */
-
-/* Base styling for all buttons */
+/* =================
+   AGENT BUTTONS
+   ================= */
 .agent-button {
-    padding: 20px 30px;
-    border-radius: 20px; 
-    transition: all 0.2s ease-in-out; 
-    font-weight: bold;
-    text-transform: uppercase;
-    cursor: pointer;
-    border: 3px solid; /* Defined by the state classes below */
-    margin: 20px
-}
+  padding: 16px;
+  background: var(--space-medium);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  color: var(--text-gray);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 120px;
 
-/* 1. Active State (Agent is available) */
-.agent-active {
-    /* Ensures active agents look clickable */
+  @media (max-width: 767px) {
+    padding: 14px;
+    font-size: 13px;
+  }
+
+  &.agent-active {
     opacity: 1;
     pointer-events: auto;
+
+    &.agent-unselected {
+      background: var(--space-medium);
+      color: var(--neptune-blue);
+      border-color: var(--neptune-blue);
+
+      &:hover {
+        background: #3a4b7c;
+      }
+    }
+
+    &.agent-selected {
+      background: var(--neptune-blue);
+      color: var(--star-white);
+      border-color: var(--nebula-purple);
+      box-shadow: 0 0 10px rgba(49, 130, 206, 0.3);
+
+      &:hover {
+        background: #2b6cb0;
+      }
+    }
+  }
+
+  &.agent-inactive {
+    opacity: 0.5;
+    pointer-events: none;
+    background: var(--space-dark);
+    border-color: var(--border-color);
+
+    &.agent-selected {
+      background: var(--space-dark);
+      color: var(--text-gray);
+      border-color: var(--neptune-blue);
+    }
+
+    &.agent-unselected {
+      background: var(--space-dark);
+      color: var(--text-gray);
+      border-color: var(--border-color);
+    }
+  }
 }
 
-.agent-inactive {
-    /* Dim the button to show it's disabled */
-    opacity: 0.5; 
-}
-
-.agent-active.agent-unselected {
-    background-color: #e0e0e0; /* Light Gray */
-    color: #1e88e5; /* Blue Text */
-    border-color: #1e88e5; /* Blue Border */
-}
-
-.agent-active.agent-unselected:hover {
-    background-color: #bdbdbd; /* Slightly darker gray on hover */
-}
-
-.agent-active.agent-selected {
-    background-color: #1e88e5; /* Blue Background */
-    color: #ffffff; /* White Text */
-    border-color: #0d47a1; /* Darker Blue Border */
-}
-
-/* Inactive (Disabled) State Styling */
-.agent-inactive.agent-selected {
-    background-color: #f0f0f0; 
-    color: #000000; /* black Text */
-    border-color: #1e88e5; /* Blue Border */
-}
-
-.agent-inactive.agent-unselected {
-    background-color: #f0f0f0; 
-    color: #9e9e9e;
-    border-color: #cccccc; 
-}
-
+/* =================
+   FOOTER
+   ================= */
 footer {
-    background: #1F3C88;
-    color: #FFFFFF;
-    padding: 15px 20px;
-    font-size: 1em; 
-    box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.2); 
+  background: var(--space-dark);
+  color: var(--text-gray);
+  padding: 15px 20px;
+  border-top: 1px solid var(--border-color);
+  margin-top: auto;
+
+  p {
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+
+  .footer-links {
     display: flex;
-    justify-content: space-between;
+    gap: 20px;
     align-items: center;
-    margin: 15px; 
+    flex-wrap: wrap;
+
+    a {
+      color: var(--neptune-blue);
+      text-decoration: none;
+      font-weight: 500;
+      transition: color 0.2s;
+
+      &:hover {
+        color: var(--nebula-purple);
+        text-decoration: underline;
+      }
+    }
+  }
 }
 
-.footer-links {
+/* =================
+   HEADER STATUS
+   ================= */
+.header-status {
+  background: var(--space-dark);
+  padding: 15px 20px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 20px;
+
+  h1 {
+    font-size: 18px;
+    margin-bottom: 10px;
+    color: var(--star-white);
+  }
+
+  .status-info {
     display: flex;
-    gap: 20px; 
-    align-items: center;
+    gap: 30px;
+    font-size: 13px;
+    color: var(--text-gray);
+
+    @media (max-width: 767px) {
+      flex-direction: column;
+      gap: 5px;
+      font-size: 12px;
+    }
+
+    .status-item {
+      @media (max-width: 767px) {
+        display: block;
+        margin-bottom: 2px;
+      }
+    }
+  }
 }
 
-.footer-links a {
-    color: #FFFFFF;
-    text-decoration: none; 
-    font-weight: bold;
-    transition: color 0.3s; 
+/* =================
+    OVERLAY
+    ================= */
+.sidebar-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 998;
+  backdrop-filter: blur(2px);
+
+  &.hidden {
+    display: none;
+  }
+
+  &.visible {
+    display: block;
+  }
 }
 
-.footer-links a:hover {
-    color: #C0C0C0; 
-    text-decoration: underline;
+/* =================
+   LOADING INDICATOR
+   ================= */
+.htmx-indicator img {
+  width: 20px;
+  height: 20px;
+}
+
+/* =================
+   UTILITY CLASSES
+   ================= */
+.hidden {
+  display: none !important;
+}
+
+/* =================
+    RESPONSIVE ADJUSTMENTS
+    ================= */
+
+/* =================
+    PRINT STYLES
+    ================= */
+@media print {
+  .sidebar,
+  .mobile-header,
+  .desktop-nav,
+  .sidebar-overlay {
+    display: none !important;
+  }
+
+  #main-content {
+    margin-left: 0;
+  }
+
+  .chart-container {
+    min-height: 600px;
+    padding: 0;
+  }
 }

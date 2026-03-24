@@ -1,4 +1,7 @@
-<header id="header-status">
-    <h1>{{.Title}}</h1>
-    <p>Reset Date: {{.ResetDate}} | Last Load: {{.LoadTime}}</p>
+<header id="header-status" class="header-status">
+    <h1>Fluffy Robot</h1>
+    <p class="status-info">
+        <span class="status-item">Reset: {{.ResetDate}}</span>
+        <span class="status-item">Last Load: {{.LoadTime}}</span>
+    </p>
 </header>
