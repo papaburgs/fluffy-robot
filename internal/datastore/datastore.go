@@ -10,13 +10,15 @@ package datastore
 import (
 	"encoding/gob"
 	"encoding/json"
+	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/klauspost/compress/zstd"
 )
 
-var path = ""
+var path = "./"
 
 func Init(p string) {
 	path = p
@@ -43,7 +45,8 @@ type ConstructionOverview struct {
 
 func writeData(basename string, v any) error {
 	// Write JSON
-	jsonFile, err := os.Create(path + "/" + basename + ".json")
+	slog.Debug("Writing files", "basepath", filepath.Join(path, basename))
+	jsonFile, err := os.Create(filepath.Join(path, basename+".json"))
 	if err != nil {
 		return err
 	}
@@ -56,7 +59,7 @@ func writeData(basename string, v any) error {
 	jsonFile.Close()
 
 	// Write compressed gob
-	gobFile, err := os.Create(path + "/" + basename + ".gob.zst")
+	gobFile, err := os.Create(filepath.Join(path, basename+".gob.zst"))
 	if err != nil {
 		return err
 	}

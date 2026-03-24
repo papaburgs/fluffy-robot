@@ -44,6 +44,7 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 	if err := json.Unmarshal(resp.Bytes, &status); err != nil {
 		return err
 	}
+	l.Debug("api call done", "status", status)
 
 	// set this locally as we use it often
 	c.reset = status.ResetDate
