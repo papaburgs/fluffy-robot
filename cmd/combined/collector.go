@@ -4,85 +4,41 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/papaburgs/fluffy-robot/internal/db"
+	"github.com/papaburgs/fluffy-robot/internal/datastore"
 	"github.com/papaburgs/fluffy-robot/internal/gate"
-	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
 
-func main() {
-	logging.InitLogger()
-	l := slog.With("function", "main")
-
-	database, err := db.Connect()
-	if err != nil {
-		l.Error("failed to connect to database", "error", err)
-		os.Exit(1)
-	}
-	defer database.Close()
-
-	if err := db.InitSchema(database); err != nil {
-		l.Error("failed to initialize schema", "error", err)
-		os.Exit(1)
-	}
-
-	gateBucketSize, err := strconv.Atoi(os.Getenv("FLUFFY_GATE_BUCKET_SIZE"))
-	if err != nil {
-		l.Error("error parsing FLUFFY_GATE_BUCKET_SIZE, defaulting to 20", "error", err)
-		gateBucketSize = 20
-	}
-	baseURL := "https://api.spacetraders.io/v2"
-
-	c := Collector{
-		db:      database,
-		gate:    gate.New(2, gateBucketSize),
-		baseURL: baseURL,
-	}
-
-	c.filterRegexes = []*regexp.Regexp{}
-	val, ok := os.LookupEnv("FLUFFY_AGENT_IGNORE_FILTERS")
-	if ok {
-		rawPatterns := strings.Split(val, ";")
-
-		for _, p := range rawPatterns {
-			// Clean up whitespace in case of "regex1; regex2"
-			p = strings.TrimSpace(p)
-			if p == "" {
-				continue
-			}
-
-			re, err := regexp.Compile(p)
-			if err != nil {
-				// Log the error but keep going so one bad regex doesn't kill the app
-				l.Error("Error compiling regex", "pattern", p, "error", err)
-				continue
-			}
-			slog.Info("Adding agent ignore filter regex", "pattern", p)
-
-			c.filterRegexes = append(c.filterRegexes, re)
-		}
-	}
-
-	c.Run(context.Background())
+type Collector struct {
+	baseURL          string
+	gate             *gate.Gate
+	reset            string
+	nextReset        time.Time
+	currentTimestamp int64
+	apiCalls         int
+	ingestStart      time.Time
+	filterRegexes    []*regexp.Regexp
+	agentTicker      *time.Ticker
+	constTicker      *time.Ticker
+	jumpgateTicker   *time.Ticker
 }
+
+var epochStart = errors.New("epoch reset detected")
 
 func (c *Collector) Run(ctx context.Context) {
 	l := slog.With("function", "Run")
 
 	var err error
-	// err = c.updateStatusAgents(ctx)
-	// if err != nil {
-	// 	slog.Error("Error running updateAgents", "error", err)
-	// }
+	err = c.updateStatusAgents(ctx)
+	if err != nil {
+		slog.Error("Error running updateAgents", "error", err)
+	}
 	// l.Warn("sleeping before first jumpgate update")
 	// time.Sleep(1 * time.Minute)
 	// err = c.updateInactiveJumpgates(ctx)
@@ -117,15 +73,15 @@ func (c *Collector) Run(ctx context.Context) {
 				resetTimer.Reset(timeUntilReset)
 			}
 		case <-c.jumpgateTicker.C:
-			err = c.updateJumpgates(ctx)
-			if err != nil {
-				l.Error("Error running updateJumpgates")
-			}
+			// err = c.updateJumpgates(ctx)
+			// if err != nil {
+			// 	l.Error("Error running updateJumpgates")
+			// }
 		case <-c.constTicker.C:
-			err = c.updateInactiveJumpgates(ctx)
-			if err != nil {
-				l.Error("Error running updateJumpgates")
-			}
+			// err = c.updateInactiveJumpgates(ctx)
+			// if err != nil {
+			// 	l.Error("Error running updateJumpgates")
+			// }
 		case <-resetTimer.C:
 			l.Info("reset timer emit, stopping tickers doing one last check and then looping until reset is complete")
 			c.agentTicker.Stop()
@@ -146,65 +102,6 @@ func (c *Collector) Run(ctx context.Context) {
 			c.constTicker = time.NewTicker(4 * 60 * time.Minute)
 			l.Info("restarted tickers")
 		}
-	}
-}
-
-var epochStart = errors.New("epoch reset detected")
-
-func (c *Collector) doGET(ctx context.Context, url string) (HTTPResponse, error) {
-	var retries429 int
-	var retriesOther int
-	c.apiCalls++
-	for {
-		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-		if err != nil {
-			return HTTPResponse{}, err
-		}
-
-		c.gate.Latch(ctx)
-
-		client := &http.Client{Timeout: 10 * time.Second}
-		resp, err := client.Do(req)
-		if err != nil {
-			retriesOther++
-			if retriesOther >= 3 {
-				return HTTPResponse{}, err
-			}
-			time.Sleep(time.Second)
-			continue
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return HTTPResponse{}, err
-		}
-
-		res := HTTPResponse{
-			Bytes:      body,
-			StatusCode: resp.StatusCode,
-		}
-
-		if resp.StatusCode == http.StatusOK {
-			return res, nil
-		}
-
-		if resp.StatusCode == 429 {
-			retries429++
-			if retries429 >= 5 {
-				return res, fmt.Errorf("received too many 429 errors")
-			}
-			c.gate.Lock(ctx)
-			time.Sleep(time.Second)
-			continue
-		}
-
-		// Handle 4xx or 5xx codes
-		retriesOther++
-		if retriesOther >= 3 {
-			return res, fmt.Errorf("received non-200 status code: %d", resp.StatusCode)
-		}
-		time.Sleep(time.Second)
 	}
 }
 
@@ -248,7 +145,7 @@ func (c *Collector) loopAtReset(ctx context.Context) error {
 
 		// at this point we have a 200, now make sure everything else is ok
 
-		var status ResponseStatus
+		var status datastore.ResponseStatus
 		if err := json.Unmarshal(body, &status); err != nil {
 			l.Error("error unmarshalling, that is weird", "body", string(body))
 			continue

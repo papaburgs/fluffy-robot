@@ -27,17 +27,6 @@ Emphasis is on maintaining a small memory footprint and efficient use of cpu.
 *   Go (version 1.24.5 or higher)
 *   Docker (if building/running with containers)
 
-### Build Commands
-
-1.  **Build from Source:**
-    ```bash
-    go mod tidy
-    go build -o app -ldflags "-s -w" *.go
-    ```
-2.  **Build Docker Image:**
-    ```bash
-    docker build -t fluffy-robot .
-    ```
 
 ### Run Commands
 
