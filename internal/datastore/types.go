@@ -41,3 +41,18 @@ type LeaderboardRecord struct {
 	CreditsList []LeaderboardEntry
 	ChartsList  []LeaderboardEntry
 }
+
+type Agent struct {
+	Symbol       string
+	Credits      int64
+	Faction      string
+	Headquarters string
+	System       string
+}
+
+type AgentStatus struct {
+	Symbol    string
+	Timestamp int64
+	Credits   int64
+	Ships     int64
+}

@@ -10,18 +10,51 @@ package datastore
 import (
 	"encoding/gob"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/klauspost/compress/zstd"
 )
 
 var path = "./"
+var reset = ""
+var resetPath = ""
+var writeJSON = false
 
-func Init(p string) {
-	path = p
+func Init() {
+	env, ok := os.LookupEnv("FLUFFY_STORAGE_PATH")
+	if ok {
+		path = env
+	}
+	err := os.MkdirAll(path, 0755)
+	if err != nil {
+		slog.Error("Failed to create directory", "path", path)
+		os.Exit(1)
+	}
+	env, ok = os.LookupEnv("FLUFFY_WRITE_JSON")
+	if ok {
+		for _, a := range []string{"yes", "y", "true"} {
+			if strings.ToLower(env) == a {
+				writeJSON = true
+				slog.Debug("writing json")
+			}
+		}
+	}
+}
+
+func UpdateReset(r string) {
+	reset = r
+	resetPath = filepath.Join(path, reset)
+	err := os.MkdirAll(resetPath, 0755)
+	if err != nil {
+		slog.Error("Failed to create directory", "path", path)
+		os.Exit(1)
+	}
+	slog.Debug("set reset", "current", resetPath)
 }
 
 type JumpGateAgentListStruct struct {
@@ -43,38 +76,51 @@ type ConstructionOverview struct {
 	Timestamp time.Time
 }
 
-func writeData(basename string, v any) error {
+func writeData(basename string, timestamp int64, v any) error {
 	// Write JSON
-	slog.Debug("Writing files", "basepath", filepath.Join(path, basename))
-	jsonFile, err := os.Create(filepath.Join(path, basename+".json"))
-	if err != nil {
-		return err
+	slog.Debug("Writing files", "basepath", resetPath)
+	var filename string
+	if writeJSON {
+		slog.Debug("writing json file")
+		if timestamp > 0 {
+			filename = filepath.Join(resetPath, fmt.Sprintf("%s-%v.json", basename, timestamp))
+		} else {
+			filename = filepath.Join(resetPath, fmt.Sprintf("%s.json", basename))
+		}
+		jsonFile, err := os.Create(filename)
+		if err != nil {
+			return err
+		}
+		defer jsonFile.Close()
+		enc := json.NewEncoder(jsonFile)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(v); err != nil {
+			return err
+		}
 	}
-	enc := json.NewEncoder(jsonFile)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(v); err != nil {
-		jsonFile.Close()
-		return err
-	}
-	jsonFile.Close()
-
 	// Write compressed gob
-	gobFile, err := os.Create(filepath.Join(path, basename+".gob.zst"))
+	slog.Debug("Writing compressed gob")
+	if timestamp > 0 {
+		filename = filepath.Join(resetPath, fmt.Sprintf("%s-%v.gob.zst", basename, timestamp))
+	} else {
+		filename = filepath.Join(resetPath, fmt.Sprintf("%s.gob.zst", basename))
+	}
+	gobFile, err := os.Create(filename)
 	if err != nil {
 		return err
 	}
+	defer gobFile.Close()
 	encoder, err := zstd.NewWriter(gobFile)
 	if err != nil {
-		gobFile.Close()
+		slog.Error("encoder error")
 		return err
 	}
+	defer encoder.Close()
 	gobEnc := gob.NewEncoder(encoder)
 	if err := gobEnc.Encode(v); err != nil {
-		encoder.Close()
-		gobFile.Close()
+		slog.Error("encoding error")
 		return err
 	}
 	encoder.Close()
-	gobFile.Close()
 	return nil
 }

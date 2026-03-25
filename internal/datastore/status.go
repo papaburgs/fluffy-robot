@@ -31,12 +31,11 @@ func StoreStats(r ResponseStatus) error {
 		NextReset:    r.ServerResets.Next,
 		LastUpdate:   time.Now(),
 	}
-	writeData("stats", st)
+	writeData("stats", 0, st)
 	return nil
 }
 
 func StoreLeaderboards(r ResponseStatus) error {
-
 	ldrbd := LeaderboardRecord{}
 	ldrbd.ChartsList = []LeaderboardEntry{}
 	for _, x := range r.Leaderboards.MostSubmittedCharts {
@@ -57,7 +56,7 @@ func StoreLeaderboards(r ResponseStatus) error {
 		)
 	}
 
-	writeData("leaderboard", ldrbd)
+	writeData("leaderboard", 0, ldrbd)
 
 	return nil
 

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/papaburgs/fluffy-robot/internal/datastore"
 	"github.com/papaburgs/fluffy-robot/internal/gate"
 	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
@@ -52,6 +53,7 @@ func main() {
 			c.filterRegexes = append(c.filterRegexes, re)
 		}
 	}
+	datastore.Init()
 
 	c.Run(context.Background())
 }
