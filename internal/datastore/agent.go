@@ -1,8 +1,9 @@
 package datastore
 
 import (
+	"encoding/gob"
 	"fmt"
-	"strings"
+	"log/slog"
 	"time"
 )
 
@@ -48,7 +49,83 @@ func StoreAgents(apiAgents []PublicAgent, now int64) {
 	writeData("agentsStatus", now, statusList)
 }
 
-func SystemFromWaypoint(w string) string {
-	split := strings.Split(w, "-")
-	return fmt.Sprintf("%s:%s", split[0], split[1])
+// LoadAgents makes the Agents map
+func LoadAgents(r string) error {
+	zeroTimer.Reset(cacheLifetime)
+	l := slog.With("function", "LoadAgents")
+	// use readdata to get back a map of filename to byte buffers
+	// NB use the . on the end so we don't get agentStatus files
+	m, err := readData("agents.")
+	if err != nil {
+		slog.Error("Failed to load agents", "error", err)
+		return err
+	}
+
+	if len(m) != 1 {
+		l.Error("should only get one result", "count", len(m))
+		return fmt.Errorf("invalid read")
+	}
+
+	for k, b := range m {
+		l.Debug("de-gobbing file", "filename", k)
+		var v []Agent
+		// make a new decoder on the buffer, which is a Reader
+		gobDec := gob.NewDecoder(b)
+
+		// try to decode the gob into an array of Agent, which is how its written
+		if err := gobDec.Decode(&v); err != nil {
+			l.Error("error decoding gob", "error", err)
+			return err
+		}
+		for _, a := range v {
+			Agents[a.Symbol] = a
+		}
+	}
+	return nil
+}
+
+// LoadAgentHistory makes the agentname to credit and ship count maps
+func LoadAgentHistory(r string) error {
+	l := slog.With("function", "LoadAgentHistory")
+	// use readdata to get back a map of filename to byte buffers
+	// NB use the dash to make it more unique
+	m, err := readData("agentsStatus-")
+	if err != nil {
+		slog.Error("Failed to load agents", "error", err)
+		return err
+	}
+
+	for k, b := range m {
+		l.Debug("de-gobbing file", "filename", k)
+		// make a new decoder on the buffer, which is a Reader
+		gobDec := gob.NewDecoder(b)
+
+		// try to decode the gob into an array of AgentStatus, which is how its written
+		var v []AgentStatus
+		if err := gobDec.Decode(&v); err != nil {
+			l.Error("error decoding gob", "error", err)
+			return err
+		}
+		for _, a := range v {
+			nextDataPointCredit := DataPoint{Timestamp: a.Timestamp, Value: a.Credits}
+			nextDataPointShips := DataPoint{Timestamp: a.Timestamp, Value: a.Ships}
+			var newCreditList []DataPoint
+			var newShipList []DataPoint
+			if cur, ok := AgentCreditHistory[a.Symbol]; ok {
+				newCreditList = append(cur, nextDataPointCredit)
+			} else {
+				newCreditList = []DataPoint{nextDataPointCredit}
+			}
+			if cur, ok := AgentShipHistory[a.Symbol]; ok {
+				newShipList = append(cur, nextDataPointShips)
+			} else {
+				newShipList = []DataPoint{nextDataPointShips}
+			}
+
+			AgentCreditHistory[a.Symbol] = newCreditList
+			AgentShipHistory[a.Symbol] = newShipList
+
+		}
+	}
+	return nil
 }

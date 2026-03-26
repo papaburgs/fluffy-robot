@@ -53,6 +53,7 @@ func main() {
 			c.filterRegexes = append(c.filterRegexes, re)
 		}
 	}
+	// tried this in an 'init' but it did not work as required
 	datastore.Init()
 
 	c.Run(context.Background())

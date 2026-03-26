@@ -42,6 +42,7 @@ type LeaderboardRecord struct {
 	ChartsList  []LeaderboardEntry
 }
 
+// ***********  Agent types *************** \\
 type Agent struct {
 	Symbol       string
 	Credits      int64
@@ -56,3 +57,15 @@ type AgentStatus struct {
 	Credits   int64
 	Ships     int64
 }
+
+type DataPoint struct {
+	Timestamp int64
+	Value     int64
+}
+
+// ************  Agent vars  ************* \\
+var (
+	Agents             map[string]Agent
+	AgentCreditHistory map[string][]DataPoint
+	AgentShipHistory   map[string][]DataPoint
+)

@@ -8,6 +8,7 @@
 package datastore
 
 import (
+	"bytes"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
@@ -24,11 +25,24 @@ var path = "./"
 var reset = ""
 var resetPath = ""
 var writeJSON = false
+var zeroTimer *time.Timer
+var cacheLifetime time.Duration
 
 func Init() {
 	env, ok := os.LookupEnv("FLUFFY_STORAGE_PATH")
 	if ok {
 		path = env
+	}
+	if env, ok = os.LookupEnv("FLUFFY_CACHE_DURATION"); ok {
+		var err error
+		cacheLifetime, err = time.ParseDuration(env)
+		if err != nil {
+			// do not have slog yet, so use fmt
+			slog.Warn("could not parse cache duration, setting to 5 mins")
+			cacheLifetime = 5 * time.Minute
+		}
+	} else {
+		cacheLifetime = 5 * time.Minute
 	}
 	err := os.MkdirAll(path, 0755)
 	if err != nil {
@@ -44,6 +58,8 @@ func Init() {
 			}
 		}
 	}
+	zeroTimer = time.NewTimer(time.Millisecond)
+	go watchTimer()
 }
 
 func UpdateReset(r string) {
@@ -123,4 +139,66 @@ func writeData(basename string, timestamp int64, v any) error {
 	}
 	encoder.Close()
 	return nil
+}
+
+// readData loopsj
+func readData(prefix string) (map[string]*bytes.Buffer, error) {
+	l := slog.With("function", "readData")
+	res := make(map[string]*bytes.Buffer)
+	files, err := os.ReadDir(resetPath)
+	if err != nil {
+		return res, err
+	}
+
+	for _, f := range files {
+		if !f.IsDir() && strings.HasPrefix(f.Name(), prefix) && strings.HasSuffix(f.Name(), ".gob.zst") {
+			l.Debug("reading file", "file", f.Name())
+			file, err := os.Open(filepath.Join(resetPath, f.Name()))
+			if err != nil {
+				slog.Error("Error opening file", "filename", f.Name(), "error", err)
+				return res, err
+			}
+			defer file.Close()
+
+			decoder, err := zstd.NewReader(file)
+			if err != nil {
+				l.Error("decoder error", "filename", f.Name(), "error", err)
+				return res, err
+			}
+			defer decoder.Close()
+			b := bytes.NewBuffer([]byte{})
+			_, err = decoder.WriteTo(b)
+			if err != nil {
+				l.Error("decode to writer error", "error", err)
+				continue
+			}
+			res[f.Name()] = b
+		}
+	}
+	return res, err
+}
+
+// watchTimer is a func that is started on init - if the timer is ever fired, we remove all the data in stored variables
+func watchTimer() {
+
+	for {
+		<-zeroTimer.C
+		slog.Debug("Zero timer fired")
+		zero()
+		slog.Debug("Zero is done")
+	}
+}
+
+// zero initializes all the variables to empty
+// can be called on startup and also when idle for too long
+func zero() {
+	slog.Debug("Zeroing")
+	Agents = make(map[string]Agent)
+	AgentCreditHistory = make(map[string][]DataPoint)
+	AgentShipHistory = make(map[string][]DataPoint)
+}
+
+func SystemFromWaypoint(w string) string {
+	split := strings.Split(w, "-")
+	return fmt.Sprintf("%s:%s", split[0], split[1])
 }
