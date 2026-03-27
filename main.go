@@ -29,4 +29,6 @@ func main() {
 	datastore.Init()
 
 	c.Run(context.Background())
+
+	// at this point we would add the frontend, but need some more database calls before I can start that process
 }

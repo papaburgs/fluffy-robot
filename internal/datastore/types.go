@@ -63,9 +63,48 @@ type DataPoint struct {
 	Value     int64
 }
 
-// ************  Agent vars  ************* \\
+type Stats struct {
+	Reset        string
+	MarketUpdate time.Time
+	Agents       int
+	Accounts     int
+	Ships        int
+	Systems      int
+	Waypoints    int
+	Status       string
+	Version      string
+	NextReset    time.Time
+	LastUpdate   time.Time
+}
+
+type JGInfo struct {
+	Jumpgate     string
+	System       string
+	Headquarters string
+	Status       int
+	Complete     int64
+}
+
+type JGConstruction struct {
+	Reset     string
+	Timestamp int64
+	Jumpgate  string
+	Fabmat    int
+	Advcct    int
+}
+
 var (
+	// ************  Agent vars  ************* \\
 	Agents             map[string]Agent
 	AgentCreditHistory map[string][]DataPoint
 	AgentShipHistory   map[string][]DataPoint
+
+	// *********** Stats vars *************** \\
+	StoredStats         Stats
+	LatestCreditLeaders []LeaderboardEntry
+	LatestChartLeaders  []LeaderboardEntry
+
+	// ************ Jumpgates *************** \\
+	hydratedJGList []JGInfo
+	JumpgatesBySystem map[string]JGInfo
 )

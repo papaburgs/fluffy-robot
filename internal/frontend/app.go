@@ -1,13 +1,15 @@
 package main
 
 import (
-	"database/sql"
 	"html/template"
 	"log/slog"
+	"net/http"
 	"os"
 	"reflect"
 	"strings"
 	"time"
+
+	"github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
 // AgentStatus holds the current status of an agent
@@ -23,17 +25,34 @@ type App struct {
 	// collectPointsPerHour is used to change the charts density
 	collectPointsPerHour int
 	t                    *template.Template
-	DB                   *sql.DB
 }
 
 // NewApp returns an app that contains all the handlers for the ui
-func NewApp(db *sql.DB) *App {
+func NewApp() *App {
 	var collectEvery = 5 // This should match the collection frequency
 	a := App{
 		collectPointsPerHour: 60 / collectEvery,
-		DB:                   db,
 	}
 
+	////////// Static file handling \\\\\\\\\\
+	// define this value to be something in order to use the 'external' css to make it easier to work on
+	// leaving it unset will embed the directory instead to make it easier for a server
+	if _, ok := os.LookupEnv("FLUFFY_STATIC_DEV"); ok {
+		// Dev case
+		fs := http.FileServer(http.Dir("./static"))
+		http.Handle("/static/", http.StripPrefix("/static/", fs))
+	} else {
+		// production case
+		fsHandler := http.FileServer(http.FS(staticFiles))
+		http.Handle("/static/", fsHandler)
+	}
+	var portNumber string = ":8845"
+	if pn, ok := os.LookupEnv("FLUFFY_PORT"); ok {
+		portNumber = pn
+	}
+	if !strings.HasPrefix(portNumber, ":") {
+		portNumber = ":" + portNumber
+	}
 	funcMap := template.FuncMap{
 		"add": func(a, b int) int {
 			return a + b
@@ -47,9 +66,7 @@ func NewApp(db *sql.DB) *App {
 	}
 
 	// Perform initial synchronous update
-	if err := a.updateReset(); err != nil {
-		slog.Error("initial reset fetch failed", "error", err)
-	}
+	a.Reset = datastore.LatestReset()
 
 	go a.updateResetLoop(a.Reset)
 
@@ -70,27 +87,15 @@ func (a *App) updateReset() error {
 	}
 
 	l.Info("fetched reset from database", "reset", reset, "nextReset", nextReset)
-	a.Reset = reset
 	return nil
 }
 
 // updateResetLoop continuously updates the Reset field of the App struct in the background.
-func (a *App) updateResetLoop(current string) {
+func (a *App) updateResetLoop() {
 	l := slog.With("function", "updateResetLoop")
 	for {
-		var reset string
-		var nextReset time.Time
-		if current == "" {
-			err := a.DB.QueryRow("SELECT reset, nextReset FROM stats ORDER BY reset DESC LIMIT 1").Scan(&reset, &nextReset)
-			if err != nil {
-				l.Error("failed to fetch reset in loop", "error", err)
-				// Don't wipe the reset on a temporary failure
-				time.Sleep(1 * time.Minute) // Wait a minute before retrying on error
-				continue
-			}
-		} else {
-			reset = current
-		}
+		nextReset := datastore.NextReset()
+		reset := datastore.LatestReset()
 		if a.Reset != reset {
 			l.Info("detected new reset", "reset", reset, "nextReset", nextReset)
 			a.Reset = reset

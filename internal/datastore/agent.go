@@ -23,6 +23,8 @@ type TimedAgentRecord struct {
 }
 
 func StoreAgents(apiAgents []PublicAgent, now int64) {
+	l := plog.With("function", "LoadAgents")
+	l.Debug("Writing Agents")
 	var (
 		agentList  = []Agent{}
 		statusList = []AgentStatus{}
@@ -51,8 +53,8 @@ func StoreAgents(apiAgents []PublicAgent, now int64) {
 
 // LoadAgents makes the Agents map
 func LoadAgents(r string) error {
+	l := plog.With("function", "LoadAgents")
 	zeroTimer.Reset(cacheLifetime)
-	l := slog.With("function", "LoadAgents")
 	// use readdata to get back a map of filename to byte buffers
 	// NB use the . on the end so we don't get agentStatus files
 	m, err := readData("agents.")

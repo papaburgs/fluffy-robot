@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/papaburgs/fluffy-robot/internal/types"
+	"github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
 // jumpgate status codes:
@@ -23,49 +23,18 @@ const (
 // this is the first stage of jumpgate tracking, we are making sure each agent has a system
 // registered in the jumpgate table. We will update the status to either no activity or active
 // based on the agent's credits.
-func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []types.PublicAgent) error {
-	l := slog.With("function", "updateJumpgatesFromAgents")
+func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []datastore.PublicAgent) error {
+	l := c.plog.With("function", "updateJumpgatesFromAgents")
 	l.Info("start")
 
-	existingJGs := make(map[string]jgInfo)
-	jgRows, err := c.db.QueryContext(ctx, `
-		SELECT system, jumpgate, status
-		FROM jumpgates WHERE reset = ?
-		`, c.reset,
-	)
-	if err == nil {
-		l.Debug("scanning existing jumpgates from db")
-		for jgRows.Next() {
+	// read in the jumpgates - this should be updated when the
+	l.Debug("scanning existing jumpgates from db")
+	existingJGs := datastore.JumpgatesBySystem
 
-			var (
-				system, jumpgate string
-				status           int
-			)
-			if err := jgRows.Scan(&system, &jumpgate, &status); err == nil {
-				existingJGs[system] = jgInfo{jumpgate: jumpgate, status: status, system: system}
-			} else {
-				l.Error("failed to scan jumpgate row", "error", err)
-			}
-		}
-		jgRows.Close()
-	} else {
-		l.Error("failed to query existing jumpgates from db", "error", err)
-	}
-
-	var (
-		inserts []jgInfo
-		updates []jgInfo
-	)
-
-	// loop over the agents we got and keep track of jg we need to update or insert.
+	// loop over the agents we got and update where needed
 	for _, a := range agents {
-		// if len(inserts) > 250 {
-		// 	// if we have more than 25 updates/inserts, we should probably just do them now to avoid having a giant transaction later.
-		// 	l.Warn("too many jumpgate updates/inserts, committing batch", "inserts", len(inserts), "updates", len(updates))
-		// 	break
-		// }
 		thisSystem := getSystemFromHQ(a.Headquarters)
-		existing, ok := existingJGs[thisSystem]
+		thisJG, ok := existingJGs[thisSystem]
 		if !ok {
 			// if we don't have this in the db, we need to add it to the activeSystems map to check it later.
 			jumpgateSymbol, err := c.findJumpgateSymbol(ctx, thisSystem)
@@ -73,83 +42,27 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []type
 				slog.Error("failed to find jumpgate symbol", "system", thisSystem, "error", err)
 				continue
 			}
-			status := jsNoActivity
-			if a.Credits != 175000 {
-				status = jsActive
+			thisJG = datastore.JGInfo{
+				System:       thisSystem,
+				Headquarters: a.Headquarters,
+				Jumpgate:     jumpgateSymbol,
 			}
-			inserts = append(inserts, jgInfo{
-				system:       thisSystem,
-				headquarters: a.Headquarters,
-				jumpgate:     jumpgateSymbol,
-				status:       status,
-			})
-			continue
 		}
-		// if we have it in the list, and it is marked as no activtity, see if we should update that
-		if existing.status == jsNoActivity {
-			if a.Credits != 175000 {
-				updates = append(updates, jgInfo{
-					system: thisSystem,
-					status: jsActive,
-				})
-			}
-			continue
+		if a.Credits != 175000 && thisJG.Status == jsNoActivity {
+			thisJG.Status = jsActive
 		}
+		existingJGs[thisSystem] = thisJG
 	}
 
 	l.Debug("done scan")
-	if len(inserts) == 0 && len(updates) == 0 {
-		l.Info("nothing to update")
-		return nil
+	// now write it back to datastore
+	jgList := make([]datastore.JGInfo, 1000)
+	for _, j := range existingJGs {
+		jgList = append(jgList, j)
 	}
+	datastore.UpdateJumpGates(jgList)
 
-	tx, err := c.db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	if len(inserts) > 0 {
-		l.Debug("Updating jumpgate inserts")
-
-		// on conflict throw an error, this should not be happening.
-		stmt, err := tx.PrepareContext(ctx, `
-			INSERT INTO jumpgates (reset, system, headquarters, jumpgate, status)
-			VALUES (?, ?, ?, ?, ?)
-		`)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-		for _, jg := range inserts {
-			l.Debug("inserting jumpgate for system", "system", jg.system, "status", jg.status)
-			if _, err := stmt.ExecContext(ctx, c.reset, jg.system, jg.headquarters, jg.jumpgate, jg.status); err != nil {
-				slog.Error("failed to insert jumpgate in batch", "system", jg.system, "error", err)
-			}
-		}
-	}
-
-	if len(updates) > 0 {
-		l.Debug("Updating jumpgate active agent status")
-		stmt, err := tx.PrepareContext(ctx, `
-			UPDATE jumpgates SET status = ? WHERE reset = ? AND system = ?
-		`)
-		if err != nil {
-			return err
-		}
-		defer stmt.Close()
-		for _, jg := range updates {
-			l.Debug("updating jumpgate active status for system", "system", jg.system, "status", jg.status)
-			if _, err := stmt.ExecContext(ctx, jg.status, c.reset, jg.system); err != nil {
-				slog.Error("failed to update jumpgate active agent status in batch", "system", jg.system, "error", err)
-			}
-		}
-	}
-	err = tx.Commit()
-	if err == nil {
-		slog.Info("jumpgate completed")
-	}
-	return err
+	return nil
 }
 
 // updateJumpgates will loop over jumpgates that are marked under construction and
@@ -159,8 +72,11 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []type
 func (c *Collector) updateJumpgates(ctx context.Context) error {
 	l := slog.With("function", "updateJumpgates")
 	l.Info("start")
+	if err := datastore.LoadJumpgates(); err != nil {
+		l.Error("did not load any data", "error", err)
+	}
 
-	c.currentTimestamp = time.Now().Unix()
+	c.currentTimestamp = time.Now().Round(time.Minute).Unix()
 	c.apiCalls = 0
 	c.ingestStart = time.Now()
 

@@ -27,6 +27,7 @@ type Collector struct {
 	agentTicker      *time.Ticker
 	constTicker      *time.Ticker
 	jumpgateTicker   *time.Ticker
+	plog             *slog.Logger
 }
 
 // var epochStart = errors.New("epoch reset detected")
@@ -35,12 +36,13 @@ func NewCollector(gate *gate.Gate, baseURL string) *Collector {
 	c := Collector{
 		gate:    gate,
 		baseURL: baseURL,
+		plog:    slog.With("package", "collector"),
 	}
 	return &c
 }
 
 func (c *Collector) Run(ctx context.Context) {
-	l := slog.With("function", "Run")
+	l := c.plog.With("function", "Run")
 
 	var err error
 	err = c.updateStatusAgents(ctx)
@@ -135,7 +137,7 @@ func (c *Collector) Run(ctx context.Context) {
 //	the reset date is today
 //	the leaderboard is mostly empty
 func (c *Collector) loopAtReset(ctx context.Context) error {
-	l := slog.With("function", "loopAtReset")
+	l := c.plog.With("function", "loopAtReset")
 
 	for {
 		l.Info("Sleeping")

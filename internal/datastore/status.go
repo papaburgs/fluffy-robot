@@ -1,21 +1,12 @@
 package datastore
 
-import "time"
+import (
+	"encoding/gob"
+	"fmt"
+	"time"
+)
 
 // Stats consists of data on the status endpoint, not counting leaderboard
-type Stats struct {
-	Reset        string
-	MarketUpdate time.Time
-	Agents       int
-	Accounts     int
-	Ships        int
-	Systems      int
-	Waypoints    int
-	Status       string
-	Version      string
-	NextReset    time.Time
-	LastUpdate   time.Time
-}
 
 func StoreStats(r ResponseStatus) error {
 	st := Stats{
@@ -59,5 +50,77 @@ func StoreLeaderboards(r ResponseStatus) error {
 	writeData("leaderboard", 0, ldrbd)
 
 	return nil
+}
 
+func LoadStats(r string) error {
+	l := plog.With("function", "LoadAgents")
+	zeroTimer.Reset(cacheLifetime)
+	// use readdata to get back a map of filename to byte buffers
+	// NB use the . on the end so we don't get agentStatus files
+	m, err := readData("stats.")
+	if err != nil {
+		l.Error("Failed to read stats file", "error", err)
+		return err
+	}
+
+	if len(m) != 1 {
+		l.Error("should only get one result", "count", len(m))
+		return fmt.Errorf("invalid read")
+	}
+
+	for k, b := range m {
+		l.Debug("de-gobbing file", "filename", k)
+		var v Stats
+		// make a new decoder on the buffer, which is a Reader
+		gobDec := gob.NewDecoder(b)
+
+		// try to decode the gob into the stats object
+		if err := gobDec.Decode(&v); err != nil {
+			l.Error("error decoding gob", "error", err)
+			return err
+		}
+		StoredStats = v
+	}
+	return nil
+}
+
+func LoadLeaderboard(r string) error {
+	l := plog.With("function", "LoadLeaderboard")
+	zeroTimer.Reset(cacheLifetime)
+	// use readdata to get back a map of filename to byte buffers
+	// NB use the . on the end so we don't get agentStatus files
+	m, err := readData("leaderboard.")
+	if err != nil {
+		l.Error("Failed to read file", "error", err)
+		return err
+	}
+
+	if len(m) != 1 {
+		l.Error("should only get one result", "count", len(m))
+		return fmt.Errorf("invalid read")
+	}
+
+	for k, b := range m {
+		l.Debug("de-gobbing file", "filename", k)
+		var v LeaderboardRecord
+		// make a new decoder on the buffer, which is a Reader
+		gobDec := gob.NewDecoder(b)
+
+		// try to decode the gob into the stats object
+		if err := gobDec.Decode(&v); err != nil {
+			l.Error("error decoding gob", "error", err)
+			return err
+		}
+		LatestCreditLeaders = v.CreditsList
+		LatestChartLeaders = v.ChartsList
+	}
+	return nil
+}
+
+func LatestReset() string {
+	return StoredStats.Reset
+}
+
+func NextReset() time.Time {
+	return StoredStats.NextReset
 }
