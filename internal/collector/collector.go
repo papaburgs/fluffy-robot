@@ -1,9 +1,8 @@
-package main
+package collector
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -30,7 +29,15 @@ type Collector struct {
 	jumpgateTicker   *time.Ticker
 }
 
-var epochStart = errors.New("epoch reset detected")
+// var epochStart = errors.New("epoch reset detected")
+
+func NewCollector(gate *gate.Gate, baseURL string) *Collector {
+	c := Collector{
+		gate:    gate,
+		baseURL: baseURL,
+	}
+	return &c
+}
 
 func (c *Collector) Run(ctx context.Context) {
 	l := slog.With("function", "Run")
@@ -53,7 +60,7 @@ func (c *Collector) Run(ctx context.Context) {
 	fmt.Println(datastore.AgentShipHistory["BURG"])
 	fmt.Println("------")
 	l.Info("that took some time", "elapsed", time.Now().Sub(begin))
-	
+
 	// l.Warn("sleeping before first jumpgate update")
 	// time.Sleep(1 * time.Minute)
 	// err = c.updateInactiveJumpgates(ctx)
