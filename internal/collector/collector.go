@@ -3,7 +3,6 @@ package collector
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -45,23 +44,27 @@ func (c *Collector) Run(ctx context.Context) {
 	l := c.plog.With("function", "Run")
 
 	var err error
-	err = c.updateStatusAgents(ctx)
+	err = c.updateStatus(ctx)
 	if err != nil {
-		slog.Error("Error running updateAgents", "error", err)
+		slog.Error("Error running updateStatus", "error", err)
 	}
-	l.Info("agents should be updated, test variable builders")
-	time.Sleep(time.Second)
-	begin := time.Now()
-	datastore.LoadAgents(c.reset)
-	datastore.LoadAgentHistory(c.reset)
+	// err = c.updateAgents(ctx)
+	// if err != nil {
+	// 	slog.Error("Error running updateStatus", "error", err)
+	// }
+	// l.Info("agents should be updated, test variable builders")
+	// time.Sleep(time.Second)
+	// begin := time.Now()
+	// datastore.LoadAgents(c.reset)
+	// datastore.LoadAgentHistory(c.reset)
 
-	l.Info("done loading content, _charts_ can now use them")
-	fmt.Println("------")
-	fmt.Println(datastore.Agents["BURG"])
-	fmt.Println("------")
-	fmt.Println(datastore.AgentShipHistory["BURG"])
-	fmt.Println("------")
-	l.Info("that took some time", "elapsed", time.Now().Sub(begin))
+	// l.Info("done loading content, _charts_ can now use them")
+	// fmt.Println("------")
+	// fmt.Println(datastore.Agents["BURG"])
+	// fmt.Println("------")
+	// fmt.Println(datastore.AgentShipHistory["BURG"])
+	// fmt.Println("------")
+	// l.Info("that took some time", "elapsed", time.Now().Sub(begin))
 
 	// l.Warn("sleeping before first jumpgate update")
 	// time.Sleep(1 * time.Minute)
@@ -72,7 +75,6 @@ func (c *Collector) Run(ctx context.Context) {
 	// l.Warn("sleeping before second jumpgate update")
 	// time.Sleep(1 * time.Minute)
 	// err = c.updateJumpgates(ctx)
-	// time.Sleep(1 * time.Minute)
 	// if err != nil {
 	// 	slog.Error("Error running updateAgents", "error", err)
 	// }
@@ -88,9 +90,13 @@ func (c *Collector) Run(ctx context.Context) {
 			return
 		case <-c.agentTicker.C:
 			l.Info("agent ticker emit")
-			err := c.updateStatusAgents(ctx)
+			err := c.updateStatus(ctx)
 			if err != nil {
 				l.Error("Error running updateAgents", "error", err)
+			}
+			err = c.updateAgents(ctx)
+			if err != nil {
+				slog.Error("Error running updateStatus", "error", err)
 			}
 			// set the resetTimer to the nextReset time minus 3 minutes, to give us a buffer to finish before the reset happens
 			timeUntilReset := time.Until(c.nextReset.Add(-3 * time.Minute))
@@ -98,21 +104,21 @@ func (c *Collector) Run(ctx context.Context) {
 				resetTimer.Reset(timeUntilReset)
 			}
 		case <-c.jumpgateTicker.C:
-			// err = c.updateJumpgates(ctx)
-			// if err != nil {
-			// 	l.Error("Error running updateJumpgates")
-			// }
+			err = c.updateJumpgates(ctx)
+			if err != nil {
+				l.Error("Error running updateJumpgates")
+			}
 		case <-c.constTicker.C:
-			// err = c.updateInactiveJumpgates(ctx)
-			// if err != nil {
-			// 	l.Error("Error running updateJumpgates")
-			// }
+			err = c.updateInactiveJumpgates(ctx)
+			if err != nil {
+				l.Error("Error running updateJumpgates")
+			}
 		case <-resetTimer.C:
 			l.Info("reset timer emit, stopping tickers doing one last check and then looping until reset is complete")
 			c.agentTicker.Stop()
 			c.jumpgateTicker.Stop()
 			c.constTicker.Stop()
-			err := c.updateStatusAgents(ctx)
+			err := c.updateStatus(ctx)
 			if err != nil {
 				l.Error("Error running updateAgents", "error", err)
 			}

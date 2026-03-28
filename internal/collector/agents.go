@@ -10,31 +10,13 @@ import (
 	"github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
-func (c *Collector) updateStatusAgents(ctx context.Context) error {
-	l := slog.With("function", "updateStatusAgents")
-	l.Info("starting data ingestion")
-
-	// set the current timestamp, rounded to the current minute.
+func (c *Collector) updateStatus(ctx context.Context) error {
+	var err error
+	l := c.plog.With("function", "updateStatus")
+	l.Debug("updating server status")
 	c.currentTimestamp = time.Now().Truncate(time.Minute).Unix()
 	c.apiCalls = 0
 	c.ingestStart = time.Now()
-	if err := c.updateStatus(ctx); err != nil {
-		l.Error("failed to update status", "error", err)
-		return err
-	}
-
-	if err := c.updateAgents(ctx); err != nil {
-		l.Error("failed to update agents", "error", err)
-		return err
-	}
-	slog.Info("data ingestion completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
-	return nil
-}
-
-func (c *Collector) updateStatus(ctx context.Context) error {
-	var err error
-	l := slog.With("function", "updateStatus")
-	l.Debug("updating server status")
 
 	resp, err := c.doGET(ctx, c.baseURL+"/")
 	if err != nil {
@@ -45,7 +27,7 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 	if err := json.Unmarshal(resp.Bytes, &status); err != nil {
 		return err
 	}
-	l.Debug("api call done", "status", status)
+	l.Debug("api call done")
 
 	// set this locally as we use it often
 	c.reset = status.ResetDate
@@ -62,6 +44,7 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 	if err != nil {
 		l.Error("Error saving leaderboards", "error", err)
 	}
+	l.Info("status ingestion completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
 	return nil
 }
 
@@ -116,6 +99,11 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 	// we use credits to see if the agent is active and for sorting
 	datastore.StoreAgents(allAgents, c.currentTimestamp)
 
-	// err = c.updateJumpgatesFromAgents(ctx, allAgents)
+	err := c.updateJumpgatesFromAgents(ctx, allAgents)
+	if err != nil {
+		return err
+	}
+
+	l.Info("agent ingestion completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
 	return nil
 }

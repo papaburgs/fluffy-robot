@@ -156,10 +156,10 @@ func readData(prefix string) (map[string]*bytes.Buffer, error) {
 
 	for _, f := range files {
 		if !f.IsDir() && strings.HasPrefix(f.Name(), prefix) && strings.HasSuffix(f.Name(), ".gob.zst") {
-			l.Debug("reading file", "file", f.Name())
+			// l.Debug("reading file", "file", f.Name())
 			file, err := os.Open(filepath.Join(resetPath, f.Name()))
 			if err != nil {
-				slog.Error("Error opening file", "filename", f.Name(), "error", err)
+				l.Error("Error opening file", "filename", f.Name(), "error", err)
 				return res, err
 			}
 			defer file.Close()
@@ -201,9 +201,11 @@ func zero() {
 	StoredStats = Stats{}
 	LatestCreditLeaders = []LeaderboardEntry{}
 	LatestChartLeaders = []LeaderboardEntry{}
+	jumpgatesBySystem = make(map[string]JGInfo)
+	jumpgatesUnderConst = make(map[string]JGInfo)
 }
 
 func SystemFromWaypoint(w string) string {
 	split := strings.Split(w, "-")
-	return fmt.Sprintf("%s:%s", split[0], split[1])
+	return fmt.Sprintf("%s-%s", split[0], split[1])
 }

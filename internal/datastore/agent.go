@@ -3,7 +3,6 @@ package datastore
 import (
 	"encoding/gob"
 	"fmt"
-	"log/slog"
 	"time"
 )
 
@@ -59,7 +58,7 @@ func LoadAgents(r string) error {
 	// NB use the . on the end so we don't get agentStatus files
 	m, err := readData("agents.")
 	if err != nil {
-		slog.Error("Failed to load agents", "error", err)
+		l.Error("Failed to load agents", "error", err)
 		return err
 	}
 
@@ -68,8 +67,7 @@ func LoadAgents(r string) error {
 		return fmt.Errorf("invalid read")
 	}
 
-	for k, b := range m {
-		l.Debug("de-gobbing file", "filename", k)
+	for _, b := range m {
 		var v []Agent
 		// make a new decoder on the buffer, which is a Reader
 		gobDec := gob.NewDecoder(b)
@@ -83,22 +81,22 @@ func LoadAgents(r string) error {
 			Agents[a.Symbol] = a
 		}
 	}
+	l.Debug("loaded agents", "count", len(Agents))
 	return nil
 }
 
 // LoadAgentHistory makes the agentname to credit and ship count maps
 func LoadAgentHistory(r string) error {
-	l := slog.With("function", "LoadAgentHistory")
+	l := plog.With("function", "LoadAgentHistory")
 	// use readdata to get back a map of filename to byte buffers
 	// NB use the dash to make it more unique
 	m, err := readData("agentsStatus-")
 	if err != nil {
-		slog.Error("Failed to load agents", "error", err)
+		l.Error("Failed to load agents", "error", err)
 		return err
 	}
 
-	for k, b := range m {
-		l.Debug("de-gobbing file", "filename", k)
+	for _, b := range m {
 		// make a new decoder on the buffer, which is a Reader
 		gobDec := gob.NewDecoder(b)
 

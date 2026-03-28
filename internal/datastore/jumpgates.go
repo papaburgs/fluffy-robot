@@ -8,7 +8,7 @@ func LoadJumpgates() error {
 	l := plog.With("function", "LoadJumpgates")
 	zeroTimer.Reset(cacheLifetime)
 	// noop if this is done already
-	if len(JumpgatesBySystem) > 0 {
+	if len(jumpgatesBySystem) > 0 {
 		return nil
 	}
 
@@ -30,16 +30,62 @@ func LoadJumpgates() error {
 			return err
 		}
 		for _, a := range v {
-			JumpgatesBySystem[a.System] = a
+			jumpgatesBySystem[a.System] = a
 		}
 	}
 	return nil
 }
 
-// UpdateJumpGates overwrites the current jumpgate data
-// this one is not written directly from an api call, but is a generated one
-// run after the agents are collected
+func Jumpgates() map[string]JGInfo {
+	return jumpgatesBySystem
+}
+
+// func JumpgatesUnderConst() map[string]JGInfo {
+// 	return jumpgatesUnderConst
+// }
+
+// UpdateJumpGates overwrites the current jumpgate data with the provided list
+// this data file is not from and api call, but built from other conditions
+// run after the agents are collected or updated
 // the collector builds these up as it correlates the agent headquarters, system, and jumpgate
-func UpdateJumpGates(jg []JGInfo) {
-	writeData("jumpgates", 0, jg)
+func UpdateJumpGates(jgList []JGInfo) {
+	plog.Info("Writing updated jumpgates", "function", "UpdateJumpGates")
+	writeData("jumpgates", 0, jgList)
+}
+
+// MarkJumpgatesComplete updates the internal map,
+// marking those in the array as complete
+// Then writes the updated list to disk
+func MarkJumpgatesComplete(jgs []string, ts int64) {
+	for _, j := range jgs {
+		jg := jumpgatesBySystem[j]
+		jg.Status = Complete
+		jg.Complete = ts
+		jumpgatesBySystem[j] = jg
+	}
+	jgList := []JGInfo{}
+	for _, j := range jumpgatesBySystem {
+		jgList = append(jgList, j)
+	}
+	UpdateJumpGates(jgList)
+}
+
+// MarkJumpgatesStarted updates the internal map,
+// marking those in the array as under construction
+// Then writes the updated list to disk
+func MarkJumpgatesStarted(jgs []string) {
+	for _, j := range jgs {
+		jg := jumpgatesBySystem[j]
+		jg.Status = Const
+		jumpgatesBySystem[j] = jg
+	}
+	jgList := []JGInfo{}
+	for _, j := range jumpgatesBySystem {
+		jgList = append(jgList, j)
+	}
+	UpdateJumpGates(jgList)
+}
+
+func AddConstructions(cList []JGConstruction, ts int64) {
+	writeData("construction", ts, cList)
 }

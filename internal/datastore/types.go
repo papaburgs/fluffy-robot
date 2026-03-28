@@ -2,6 +2,16 @@ package datastore
 
 import "time"
 
+type ConstructionStatus uint8
+
+// jumpgate status codes:
+const (
+	NoActivity ConstructionStatus = iota
+	Active
+	Const
+	Complete
+)
+
 type ResponseStatus struct {
 	Leaderboards struct {
 		MostCredits []struct {
@@ -81,12 +91,11 @@ type JGInfo struct {
 	Jumpgate     string
 	System       string
 	Headquarters string
-	Status       int
+	Status       ConstructionStatus
 	Complete     int64
 }
 
 type JGConstruction struct {
-	Reset     string
 	Timestamp int64
 	Jumpgate  string
 	Fabmat    int
@@ -105,6 +114,6 @@ var (
 	LatestChartLeaders  []LeaderboardEntry
 
 	// ************ Jumpgates *************** \\
-	hydratedJGList []JGInfo
-	JumpgatesBySystem map[string]JGInfo
+	jumpgatesBySystem   map[string]JGInfo
+	jumpgatesUnderConst map[string]JGInfo
 )
