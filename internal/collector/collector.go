@@ -78,7 +78,7 @@ func (c *Collector) Run(ctx context.Context) {
 	// if err != nil {
 	// 	slog.Error("Error running updateAgents", "error", err)
 	// }
-	time.Sleep(5 * time.Minute)
+	// time.Sleep(5 * time.Minute)
 	c.agentTicker = time.NewTicker(5 * time.Minute)
 	c.jumpgateTicker = time.NewTicker(30 * time.Minute)
 	c.constTicker = time.NewTicker(4 * 60 * time.Minute)
