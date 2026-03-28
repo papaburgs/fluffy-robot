@@ -39,23 +39,27 @@ func New(t1Limit, t60Limit int) *Gate {
 		queueMutex: sync.Mutex{},
 	}
 	g.queue.Init()
-	go g.Loop()
+	go g.loop()
 	return &g
 }
 
-func (g *Gate) Loop() {
+func (g *Gate) loop() {
 	l := slog.With("func", "Loop")
 	ratelimit := 1
 	for {
 		select {
 		case <-g.t1Ticker.C:
 			// A second has passed, reset counter
+			g.queueMutex.Lock()
 			g.t1Count = 0
 			ratelimit = 1
+			g.queueMutex.Unlock()
 		case <-g.t60Ticker.C:
 			// A minute has passed, reset that counter
+			g.queueMutex.Lock()
 			g.t60Count = 0
 			ratelimit = 1
+			g.queueMutex.Unlock()
 		case <-g.tCheck.C:
 			// If the check timer hits, process the queue
 			g.queueMutex.Lock()
@@ -109,4 +113,13 @@ func (g *Gate) Latch(ctx context.Context) {
 	case <-ctx.Done():
 		slog.Warn("context cancelled")
 	}
+}
+
+
+// if we get a 429, we will lock the gate, meaning no one gets through until they reset
+func (g *Gate) Lock(ctx context.Context) {
+	g.queueMutex.Lock()
+	g.t1Count = 9999
+	g.t60Count = 99999
+	g.queueMutex.Unlock()
 }

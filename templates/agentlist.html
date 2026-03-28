@@ -1,9 +1,0 @@
-    {{range .}}
-    <button id="btn-{{.Name}}" 
-        type="button"
-        class="agent-button {{if .IsActive}}agent-active{{else}}agent-inactive{{end}}  {{if .IsChecked}}agent-selected{{else}}agent-unselected{{end}}"
-        onclick="toggleAgentSelection('{{.Name}}')"
-        >{{.Name}}
-    </button>
-    {{end}}
-

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Fluffy Robot Dashboard</title>
+        <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+        <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
+        <link rel="stylesheet" href="static/style.css">
+        <style>
+            /* Critical Sidebar CSS Inlined */
+            :root {
+                --sidebar-width: 250px;
+                --card-bg: #1E1E1E;
+            }
+            .sidebar {
+                width: var(--sidebar-width);
+                background-color: var(--card-bg);
+                height: 100vh;
+                position: fixed;
+                top: 0;
+                left: calc(-1 * var(--sidebar-width));
+                transition: left 0.3s ease-in-out, margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
+                z-index: 1000;
+                display: flex;
+                flex-direction: column;
+                border-right: 1px solid #333;
+                overflow: hidden;
+            }
+            .sidebar.open {
+                left: 0 !important;
+            }
+            .app-container {
+                display: flex;
+                flex: 1;
+                position: relative;
+                overflow-x: hidden;
+            }
+            main {
+                flex: 1;
+                width: 100%;
+                transition: all 0.3s ease-in-out;
+            }
+            .chart-scroll-wrapper {
+                width: 100%;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                margin-bottom: 20px;
+            }
+            .chart-scroll-wrapper > div {
+                min-width: 600px; /* Ensure readability on mobile */
+            }
+            
+            /* Desktop */
+            @media (min-width: 769px) {
+                .sidebar {
+                    position: relative;
+                    left: 0 !important;
+                    margin-left: 0;
+                    min-width: 0;
+                }
+                .app-container.sidebar-collapsed .sidebar {
+                    margin-left: calc(-1 * var(--sidebar-width));
+                    width: 0;
+                    border-right: none;
+                }
+                #close-sidebar {
+                    display: none;
+                }
+            }
+        </style>
+    </head>
+    <body hx-headers='{"X-CSRF-Token": "tbd"}'>
+        <div class="app-container" id="app-container">
+            {{template "nav.html" .}}
+            
+            <main id="main-content">
+                {{template "header.html" .}}
+                
+                <div id="content-area" 
+                     hx-get="/leaderboard" 
+                     hx-trigger="load delay:100ms">
+                    <!-- Initial content will be loaded here -->
+                    <div class="loading">Loading dashboard...</div>
+                </div>
+            </main>
+        </div>
+
+        <footer>
+            <p>Spacetraders Credit Report - 2026</p>
+            <div class="footer-links">
+                <a href="https://github.com/papaburgs/fluffy-robot" target="_blank" rel="noopener noreferrer">GitHub</a>
+                <a href="https://railway.com?referralCode=-I-osp" target="_blank" rel="noopener noreferrer">Hosted on Railway</a>
+            </div>
+        </footer>
+
+        <script>
+            const AGENT_STORAGE_KEY = 'selected-agents';
+            const MY_AGENT_KEY = 'my-agent';
+            const CLASS_SELECTED = 'agent-selected';
+            const CLASS_UNSELECTED = 'agent-unselected';
+
+            function getMyAgentForHxVals() {
+                return localStorage.getItem(MY_AGENT_KEY) || '';
+            }
+
+            // Sidebar Logic
+            document.addEventListener('DOMContentLoaded', () => {
+                const appContainer = document.getElementById('app-container');
+                const sidebar = document.getElementById('sidebar');
+                const toggleBtn = document.getElementById('toggle-sidebar');
+                const closeBtn = document.getElementById('close-sidebar');
+
+                const toggleSidebar = () => {
+                    const isMobile = window.innerWidth <= 768;
+                    console.log('Toggle sidebar clicked. isMobile:', isMobile);
+                    if (isMobile) {
+                        if (sidebar) {
+                            sidebar.classList.toggle('open');
+                            console.log('Mobile sidebar classes:', sidebar.className);
+                        }
+                    } else {
+                        if (appContainer) {
+                            appContainer.classList.toggle('sidebar-collapsed');
+                            console.log('Desktop container classes:', appContainer.className);
+                        }
+                    }
+                };
+
+                if (toggleBtn) {
+                    toggleBtn.addEventListener('click', toggleSidebar);
+                }
+
+                if (closeBtn && sidebar) {
+                    closeBtn.addEventListener('click', () => {
+                        sidebar.classList.remove('open');
+                    });
+                }
+
+                // Close sidebar when a link is clicked (on mobile)
+                if (sidebar) {
+                    sidebar.addEventListener('click', (e) => {
+                        if (window.innerWidth <= 768 && e.target.closest('.nav-link')) {
+                            sidebar.classList.remove('open');
+                        }
+                    });
+                }
+
+                // Close sidebar when clicking outside on mobile
+                document.addEventListener('click', (e) => {
+                    if (window.innerWidth <= 768 && 
+                        sidebar && sidebar.classList.contains('open') &&
+                        !sidebar.contains(e.target) && 
+                        (!toggleBtn || !toggleBtn.contains(e.target))) {
+                        sidebar.classList.remove('open');
+                    }
+                });
+            });
+            function toggleAgentSelection(agentName) {
+                const agentButton = document.getElementById(`btn-${agentName}`);
+
+                if (!agentButton) {
+                    console.error(`Button for agent ${agentName} not found.`);
+                    return;
+                }
+
+                let selectedAgents = (localStorage.getItem(AGENT_STORAGE_KEY) || '').split(',').filter(Boolean);
+                const agentIndex = selectedAgents.indexOf(agentName);
+                const isCurrentlySelected = agentIndex > -1;
+
+                let newAction; // 'add' or 'remove'
+
+                if (isCurrentlySelected) {
+                    // Agent is currently selected -> REMOVE it
+                    selectedAgents.splice(agentIndex, 1);
+                    newAction = 'remove';
+                } else {
+                    // Agent is NOT selected -> ADD it
+                    selectedAgents.push(agentName);
+                    newAction = 'add';
+                }
+
+                localStorage.setItem(AGENT_STORAGE_KEY, selectedAgents.join(','));
+
+                if (newAction === 'add') {
+                    agentButton.classList.add(CLASS_SELECTED);
+                    agentButton.classList.remove(CLASS_UNSELECTED);
+                } else { // 'remove'
+                    agentButton.classList.add(CLASS_UNSELECTED);
+                    agentButton.classList.remove(CLASS_SELECTED);
+                }
+
+                console.log(`Agent ${agentName} ${newAction}ed. Stored list: ${selectedAgents.join(',')}`);
+            }
+
+            function getStoredAgentsForHxVals() {
+                // Get the string from localStorage
+                const savedAgents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
+                console.log("this got called")
+                console.log(savedAgents)
+                return `${savedAgents}`;
+            }
+        </script>
+    </body>
+</html>

@@ -1,6 +1,4 @@
-package app
-
-// this file contains all functions related to charting
+package main
 
 import (
 	"html/template"
@@ -10,7 +8,7 @@ import (
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
-	"github.com/go-echarts/go-echarts/v2/render"
+	"github.com/papaburgs/fluffy-robot/internal/types"
 )
 
 func (a *App) Last24CreditChart(agents []string) *charts.Line {
@@ -19,31 +17,31 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme: "dark",
+			Width: "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last 24 hours",
 			Subtitle: "Data point every 15 minutes",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
-			// Max: 200,
+			Min:      0,
+			Name:     "Credits",
+			Position: "right",
 		}),
+
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
 			Min:  tfha,
 		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
+		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
+		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 24*time.Hour)
 		if err != nil {
-			slog.Error("error getting agent records", "error", err)
+			slog.Error("error getting agent records from DB", "error", err)
 			continue
 		}
 		items := make([]opts.LineData, 0)
@@ -63,31 +61,29 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme: "dark",
+			Width: "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last 4 hours",
 			Subtitle: "20 Data Points per hour",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
-			// Max: 200,
+			Min:      0,
+			Position: "right",
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
 			Min:  tfha,
 		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
+		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
+		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 4*time.Hour)
 		if err != nil {
-			slog.Error("error getting agent records", "error", err)
+			slog.Error("error getting agent records from DB", "error", err)
 			continue
 		}
 		items := make([]opts.LineData, 0)
@@ -108,31 +104,29 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme: "dark",
+			Width: "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last hour",
 			Subtitle: "All Data points",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
-			Min: 0,
-			// Max: 200,
+			Min:      0,
+			Position: "right",
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
 			Min:  tfha,
 		}),
-		charts.WithTooltipOpts(opts.Tooltip{ // Potential to string format tooltip here
+		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
 	)
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
+		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 1*time.Hour)
 		if err != nil {
-			slog.Error("error getting agent records", "error", err)
+			slog.Error("error getting agent records from DB", "error", err)
 			continue
 		}
 		items := make([]opts.LineData, 0)
@@ -150,12 +144,15 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	weekAgoMs := int(time.Now().Add(-7 * 24 * time.Hour).UnixMilli())
 
 	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{Theme: "dark"}),
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+			Width: "100%",
+		}),
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Credits - last 7 days",
 			Subtitle: "Adaptive down-sampling",
 		}),
-		charts.WithYAxisOpts(opts.YAxis{Min: 0}),
+		charts.WithYAxisOpts(opts.YAxis{Min: 0, Position: "right"}),
 		charts.WithXAxisOpts(opts.XAxis{Type: "time", Min: weekAgoMs}),
 		charts.WithTooltipOpts(opts.Tooltip{Show: opts.Bool(true), Trigger: "axis"}),
 	)
@@ -176,12 +173,9 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	}
 
 	for _, p := range agents {
-		if a.agentCache.IsCacheEvicted() {
-			a.agentCache.ReloadData(a.Reset)
-		}
-		hist, err := a.agentCache.GetAgentRecords(p)
+		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 7*24*time.Hour)
 		if err != nil {
-			slog.Error("error getting agent records", "error", err)
+			slog.Error("error getting agent records from DB", "error", err)
 			continue
 		}
 		items := make([]opts.LineData, 0, len(hist)/stride+1)
@@ -195,31 +189,56 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	return line
 }
 
-// func RenderLineChart(w http.ResponseWriter) {
-// 	line := charts.NewLine()
-// 	line.SetGlobalOptions(
-// 		charts.WithTitleOpts(opts.Title{Title: "Simple Line Chart"}),
-// 	)
-//
-// 	line.AddSeries("Category A", []opts.LineData{
-// 		{Value: 10}, {Value: 20}, {Value: 30}, {Value: 40},
-// 	})
-//
-// 	// Render only the chart div and script
-// 	RenderChartFragment(w, line)
-// }
-
-// RenderChartFragment renders a go-echarts chart as a fragment (div + script) to the ResponseWriter.
-func (a *App) RenderChartFragment(w io.Writer, chart render.Renderer) error {
-	snippet := chart.RenderSnippet()
-
-	data := struct {
-		Element template.HTML
-		Script  template.HTML
-	}{
-		Element: template.HTML(snippet.Element),
-		Script:  template.HTML(snippet.Script),
+func (a *App) JumpgateConstructionChart(data map[string][]types.ConstructionRecord, duration time.Duration) *charts.Line {
+	line := charts.NewLine()
+	tfha := int(time.Now().Add(-duration).UnixMilli())
+	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+			Width: "100%",
+		}),
+		charts.WithTitleOpts(opts.Title{
+			Title:    "Jumpgate Construction Progress",
+			Subtitle: "Materials vs Time",
+		}),
+		charts.WithYAxisOpts(opts.YAxis{
+			Min:      0,
+			Position: "right",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type: "time",
+			Min:  tfha,
+		}),
+		charts.WithTooltipOpts(opts.Tooltip{
+			Show:    opts.Bool(true),
+			Trigger: "axis",
+		}),
+	)
+	for jg, recs := range data {
+		fabItems := make([]opts.LineData, 0)
+		advItems := make([]opts.LineData, 0)
+		for _, r := range recs {
+			fabItems = append(fabItems, opts.LineData{Value: []interface{}{r.Timestamp, r.Fabmat}})
+			advItems = append(advItems, opts.LineData{Value: []interface{}{r.Timestamp, r.Advcct}})
+		}
+		line.AddSeries(jg+" (Fabmat)", fabItems)
+		line.AddSeries(jg+" (Advcct)", advItems)
 	}
+	return line
+}
 
+type ChartSnippet struct {
+	Element template.HTML
+	Script  template.HTML
+}
+
+type ChartPageData struct {
+	CreditChart       ChartSnippet
+	ConstructionTable []types.ConstructionOverview
+	ConstructionChart ChartSnippet
+}
+
+// RenderChartFragment renders the chart page content to the ResponseWriter.
+func (a *App) RenderChartFragment(w io.Writer, data ChartPageData) error {
 	return a.t.ExecuteTemplate(w, "chart.html", data)
 }

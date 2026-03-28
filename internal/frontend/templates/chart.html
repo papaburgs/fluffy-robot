@@ -1,0 +1,41 @@
+<h2>Chart Visualization</h2>
+
+<div class="chart-scroll-wrapper">
+  <div>{{ .CreditChart.Element }} {{ .CreditChart.Script }}</div>
+</div>
+
+{{if .ConstructionTable}}
+<div class="construction-summary">
+    <h3>Jumpgate Construction Summary</h3>
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>Agent</th>
+                    <th>Jumpgate</th>
+                    <th>Fabmat</th>
+                    <th>Adv Circuitry</th>
+                    <th>Last Update</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{range .ConstructionTable}}
+                <tr>
+                    <td>{{.Agent}}</td>
+                    <td>{{.Jumpgate}}</td>
+                    <td>{{.Fabmat}}</td>
+                    <td>{{.Advcct}}</td>
+                    <td>{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
+                </tr>
+                {{end}}
+            </tbody>
+        </table>
+    </div>
+</div>
+{{end}}
+
+{{if .ConstructionChart.Element}}
+<div class="chart-scroll-wrapper">
+  <div>{{ .ConstructionChart.Element }} {{ .ConstructionChart.Script }}</div>
+</div>
+{{end}}
