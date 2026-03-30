@@ -17,7 +17,7 @@ import (
 type Collector struct {
 	baseURL          string
 	gate             *gate.Gate
-	reset            string
+	currentReset     string
 	nextReset        time.Time
 	currentTimestamp int64
 	apiCalls         int

@@ -29,7 +29,7 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 
 	// get a copy of the jumpgates
 	var jgs = make(map[string]ds.JGInfo)
-	maps.Copy(jgs, ds.Jumpgates())
+	maps.Copy(jgs, ds.Jumpgates(c.currentReset))
 
 	// loop over the agents we got and update where needed
 	l.Debug("starting loop")
@@ -65,7 +65,7 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 	for _, j := range jgs {
 		jgList = append(jgList, j)
 	}
-	ds.UpdateJumpGates(jgList)
+	ds.UpdateJumpGates(c.currentReset, jgList)
 
 	l.Info("Update complete construction complete",
 		"apicalls", c.apiCalls,

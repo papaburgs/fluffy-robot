@@ -3,6 +3,8 @@ package datastore
 import (
 	"encoding/gob"
 	"fmt"
+	"os"
+	"sort"
 	"time"
 )
 
@@ -52,12 +54,16 @@ func StoreLeaderboards(r ResponseStatus) error {
 	return nil
 }
 
-func LoadStats(r string) error {
+func LoadStats(thisReset string) error {
 	l := plog.With("function", "LoadAgents")
 	zeroTimer.Reset(cacheLifetime)
+	if StoredStats[thisReset].Reset == "" {
+		l.Info("Cache built, this is noop")
+		return nil
+	}
 	// use readdata to get back a map of filename to byte buffers
 	// NB use the . on the end so we don't get agentStatus files
-	m, err := readData("stats.")
+	m, err := readData("stats.", "")
 	if err != nil {
 		l.Error("Failed to read stats file", "error", err)
 		return err
@@ -79,17 +85,26 @@ func LoadStats(r string) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		StoredStats = v
+		StoredStats[thisReset] = v
 	}
 	return nil
 }
 
-func LoadLeaderboard(r string) error {
+func GetStats(thisReset string) Stats {
+	l := plog.With("function", "GetStats")
+	if err := LoadStats(thisReset); err != nil {
+		l.Error("error loading stats", "thisReset", thisReset, "error", err)
+		return Stats{}
+	}
+	return StoredStats[thisReset]
+}
+
+func LoadLeaderboard(thisReset string) error {
 	l := plog.With("function", "LoadLeaderboard")
 	zeroTimer.Reset(cacheLifetime)
 	// use readdata to get back a map of filename to byte buffers
 	// NB use the . on the end so we don't get agentStatus files
-	m, err := readData("leaderboard.")
+	m, err := readData("leaderboard.", thisReset)
 	if err != nil {
 		l.Error("Failed to read file", "error", err)
 		return err
@@ -117,10 +132,47 @@ func LoadLeaderboard(r string) error {
 	return nil
 }
 
+func GetLeaderboard(thisReset string) (credits, charts []LeaderboardEntry) {
+	l := plog.With("function", "GetLeaderboard")
+	if err := LoadLeaderboard(thisReset); err != nil {
+		l.Error("error loading leaderboard", "thisReset", thisReset, "error", err)
+		return nil, nil
+	}
+	return LatestCreditLeaders, LatestChartLeaders
+}
+
+// AllResets reads each directory in the path directory and makes a list
+// of all the resets sorted in alphabetical order,
+// which should be the same as chronological order
+// since the resets are in YYYY-MM-DD format.
+// This is used to populate the dropdown for selecting resets on the frontend.
+func AllResets() []string {
+	l := plog.With("function", "AllResets")
+	resets := []string{}
+	files, err := os.ReadDir(path)
+	if err != nil {
+		l.Error("Failed to read resets directory", "error", err)
+		return resets
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			resets = append(resets, f.Name())
+		}
+	}
+	// before returning sort the resets in reverse order so the most recent reset is first
+	sort.Slice(resets, func(i, j int) bool {
+		return resets[i] > resets[j]
+	})
+	return resets
+}
+
 func LatestReset() string {
-	return StoredStats.Reset
+	return reset
 }
 
 func NextReset() time.Time {
-	return StoredStats.NextReset
+	thisReset := AllResets()[0]
+	LoadStats(thisReset)
+	return StoredStats[reset].NextReset
 }

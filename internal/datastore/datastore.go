@@ -145,11 +145,16 @@ func writeData(basename string, timestamp int64, v any) error {
 	return nil
 }
 
-// readData loopsj
-func readData(prefix string) (map[string]*bytes.Buffer, error) {
+// readData loops over files of a type and returns a map of filename to byte buffer, which can then be decoded by the caller
+func readData(prefix, reset string) (map[string]*bytes.Buffer, error) {
 	l := plog.With("function", "readData")
 	res := make(map[string]*bytes.Buffer)
-	files, err := os.ReadDir(resetPath)
+
+	thisPath := resetPath
+	if reset != "" {
+		thisPath = filepath.Join(path, reset)
+	}
+	files, err := os.ReadDir(thisPath)
 	if err != nil {
 		return res, err
 	}

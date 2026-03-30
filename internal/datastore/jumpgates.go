@@ -4,7 +4,10 @@ import (
 	"encoding/gob"
 )
 
-func LoadJumpgates() error {
+// LoadJumpgates reads all the jumpgates in a reset and builds the jumpgateLists variable
+// this is a map of reset to the list of jumpgates
+// exported functions will filter and convert this list as needed.
+func LoadJumpgates(thisReset string) error {
 	l := plog.With("function", "LoadJumpgates")
 	zeroTimer.Reset(cacheLifetime)
 	// noop if this is done already
@@ -12,7 +15,7 @@ func LoadJumpgates() error {
 		return nil
 	}
 
-	m, err := readData("jumpgates.")
+	m, err := readData("jumpgates.", thisReset)
 	if err != nil {
 		l.Error("Failed to read data file", "error", err)
 		return err
@@ -24,20 +27,22 @@ func LoadJumpgates() error {
 		// make a new decoder on the buffer, which is a Reader
 		gobDec := gob.NewDecoder(b)
 
-		// try to decode the gob into an array of Agent, which is how its written
 		if err := gobDec.Decode(&v); err != nil {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		for _, a := range v {
-			jumpgatesBySystem[a.System] = a
-		}
+		jumpgateLists[thisReset] = v
 	}
 	return nil
 }
 
-func Jumpgates() map[string]JGInfo {
-	return jumpgatesBySystem
+// Jumpgates is here, but what does it do?
+func Jumpgates(thisReset string) map[string]JGInfo {
+	if err := LoadJumpgates(); err != nil {
+		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
+		return nil
+	}
+	jumpgates[thisReset]
 }
 
 // func JumpgatesUnderConst() map[string]JGInfo {

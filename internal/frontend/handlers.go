@@ -1,4 +1,4 @@
-package main
+package frontend
 
 import (
 	"encoding/json"
@@ -12,14 +12,14 @@ import (
 	"github.com/go-echarts/go-echarts/v2/charts"
 )
 
-func (a *App) RootHandler(w http.ResponseWriter, r *http.Request) {
+func RootHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("RootHandler")
 	w.Header().Set("Content-Type", "text/html")
 	slog.Info("Incoming request", "endpoint", "index")
-	a.t.ExecuteTemplate(w, "index.html", a)
+	t.ExecuteTemplate(w, "index.html", nil)
 }
 
-func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
+func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("LoadChartHandler")
 
 	q := r.URL.Query()
@@ -38,16 +38,16 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	switch period {
 	case "24h":
 		duration = 24 * time.Hour
-		creditChart = a.Last24CreditChart(agents)
+		creditChart = Last24CreditChart(agents)
 	case "4h":
 		duration = 4 * time.Hour
-		creditChart = a.Last4CreditChart(agents)
+		creditChart = Last4CreditChart(agents)
 	case "7d":
 		duration = 7 * 24 * time.Hour
-		creditChart = a.Last7dCreditChart(agents)
+		creditChart = Last7dCreditChart(agents)
 	default:
 		duration = 1 * time.Hour
-		creditChart = a.Last1CreditChart(agents)
+		creditChart = Last1CreditChart(agents)
 	}
 
 	if creditChart != nil {
@@ -59,15 +59,15 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get latest construction overview
-	overview, err := a.GetLatestConstructionRecords(agents, a.Reset)
+	overview, err := GetLatestConstructionRecords(agents, resets[0])
 	if err == nil && len(overview) > 0 {
 		pageData.ConstructionTable = overview
 	}
 
 	// Generate construction chart if any data
-	recs, err := a.GetConstructionRecordsFromDB(agents, a.Reset, duration)
+	recs, err := GetConstructionRecordsFromDB(agents, resets[0], duration)
 	if err == nil && len(recs) > 0 {
-		constChart := a.JumpgateConstructionChart(recs, duration)
+		constChart := JumpgateConstructionChart(recs, duration)
 		if constChart != nil {
 			snippet := constChart.RenderSnippet()
 			pageData.ConstructionChart = ChartSnippet{
@@ -78,40 +78,39 @@ func (a *App) LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	a.RenderChartFragment(w, pageData)
+	RenderChartFragment(w, pageData)
 }
 
-func (a *App) PermissionsHandler(w http.ResponseWriter, r *http.Request) {
+func PermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("PermissionsHandler")
-	agents, err := a.GetAllAgentsFromDB(a.Reset)
+	agents, err := GetAllAgentsFromDB(resets[0])
 	if err != nil {
 		slog.Error("Error getting agents from DB", "error", err)
 		http.Error(w, "Error getting agents", http.StatusInternalServerError)
 		return
 	}
 
-	a.t.ExecuteTemplate(w, "permissions.html", map[string]interface{}{
+	t.ExecuteTemplate(w, "permissions.html", map[string]interface{}{
 		"Agents": agents,
 	})
 }
 
-func (a *App) HeaderHandler(w http.ResponseWriter, r *http.Request) {
+func HeaderHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("HeaderHandler")
 	// Header usually contains status info like Reset date, etc.
 	// We might want to pass 'a' or some data to it.
 	// For now, let's pass 'a' so it can access Reset.
-	a.t.ExecuteTemplate(w, "header.html", a)
+	t.ExecuteTemplate(w, "header.html", nil)
 }
 
-func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
+func ExportHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("ExportHandler")
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Content-Disposition", `attachment; filename="backup.json"`)
 
 	// Export limited data since we don't have local state
 	data := map[string]interface{}{
-		"reset":                a.Reset,
-		"collectPointsPerHour": a.collectPointsPerHour,
+		"reset": resets[0],
 	}
 
 	b, err := json.Marshal(data)
@@ -122,7 +121,7 @@ func (a *App) ExportHandler(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(b)
 }
 
-func (a *App) PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
+func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("PermissionsGridHandler")
 	// This handler returns a partial (HTML) for HTMX
 
@@ -133,7 +132,7 @@ func (a *App) PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		IsChecked bool
 	}
 	d := []data{}
-	agents, err := a.GetAllAgentsFromDB(a.Reset)
+	agents, err := GetAllAgentsFromDB(resets[0])
 	if err != nil {
 		slog.Error("Error getting agents from DB", "error", err)
 		http.Error(w, "Error getting agents", http.StatusInternalServerError)
@@ -182,9 +181,9 @@ func (a *App) PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		return d[i].Name < d[j].Name // Ascending name (default)
 	})
 
-	a.t.ExecuteTemplate(w, "permissions-grid.html", d)
+	t.ExecuteTemplate(w, "permissions-grid.html", d)
 }
-func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
+func LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("LeaderboardHandler")
 	leaderboardType := r.URL.Query().Get("type")
 	if leaderboardType == "" {
@@ -192,7 +191,7 @@ func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	myAgent := r.URL.Query().Get("myAgent")
 
-	data, err := a.GetLeaderboard(leaderboardType, a.Reset)
+	data, err := GetLeaderboard(leaderboardType, resets[0])
 	if err != nil {
 		slog.Error("failed to get leaderboard", "error", err)
 		http.Error(w, "failed to get leaderboard", http.StatusInternalServerError)
@@ -200,31 +199,31 @@ func (a *App) LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// If template doesn't exist yet, this will fail. We need to create it.
-	a.t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
+	t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
 		"Type":    leaderboardType,
 		"Data":    data,
 		"MyAgent": myAgent,
 	})
 }
 
-func (a *App) StatsHandler(w http.ResponseWriter, r *http.Request) {
+func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("StatsHandler")
-	stats, err := a.GetStats(a.Reset)
+	stats, err := GetStats(resets[0])
 	if err != nil {
 		slog.Error("failed to get stats", "error", err)
 		http.Error(w, "failed to get stats", http.StatusInternalServerError)
 		return
 	}
-	a.t.ExecuteTemplate(w, "stats.html", stats)
+	t.ExecuteTemplate(w, "stats.html", stats)
 }
 
-func (a *App) JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
+func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("JumpgatesHandler")
-	gates, err := a.GetJumpgates(a.Reset)
+	gates, err := GetJumpgates(resets[0])
 	if err != nil {
 		slog.Error("failed to get jumpgates", "error", err)
 		http.Error(w, "failed to get jumpgates", http.StatusInternalServerError)
 		return
 	}
-	a.t.ExecuteTemplate(w, "jumpgates.html", gates)
+	t.ExecuteTemplate(w, "jumpgates.html", gates)
 }

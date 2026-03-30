@@ -1,43 +1,21 @@
-package main
+package frontend
 
 import (
-	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/types"
 )
 
-// GetAgentRecordsFromDB reads agent history from Turso DB.
-func (a *App) GetAgentRecordsFromDB(symbol string, reset string, duration time.Duration) ([]types.AgentRecord, error) {
-	records := []types.AgentRecord{}
-	startTime := time.Now().Add(-duration).Unix()
-
-	rows, err := a.DB.Query("SELECT timestamp, ships, credits FROM agentstatus WHERE reset = ? AND symbol = ? AND timestamp >= ? ORDER BY timestamp ASC", reset, symbol, startTime)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query agent history: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var ts int64
-		var ships, credits int
-		if err := rows.Scan(&ts, &ships, &credits); err != nil {
-			continue
-		}
-		records = append(records, types.AgentRecord{
-			Timestamp: time.Unix(ts, 0).UTC(),
-			ShipCount: ships,
-			Credits:   credits,
-		})
-	}
-	return records, nil
-}
-
+// // GetAgentRecordsFromDB reads agent history from Turso DB.
+// func GetAgentRecordsFromDB(symbol string, reset string, duration time.Duration) ([]ds.AgentStatus, error) {
+// 	slog.Error("don't use this")
+// 	return nil, fmt.Errorf("GetAgentRecordsFromDB is deprecated and should not be used")
+// }
+//
 // GetConstructionRecordsFromDB retrieves jumpgate construction progress history.
-func (a *App) GetConstructionRecordsFromDB(agents []string, reset string, duration time.Duration) (map[string][]types.ConstructionRecord, error) {
+func GetConstructionRecordsFromDB(agents []string, reset string, duration time.Duration) (map[string][]types.ConstructionRecord, error) {
 	res := make(map[string][]types.ConstructionRecord)
 	startTime := time.Now().Add(-duration).Unix()
 
@@ -92,7 +70,7 @@ func (a *App) GetConstructionRecordsFromDB(agents []string, reset string, durati
 }
 
 // GetLatestConstructionRecords retrieves the most recent construction progress for a set of agents.
-func (a *App) GetLatestConstructionRecords(agents []string, reset string) ([]types.ConstructionOverview, error) {
+func GetLatestConstructionRecords(agents []string, reset string) ([]types.ConstructionOverview, error) {
 	results := []types.ConstructionOverview{}
 
 	for _, agent := range agents {
@@ -130,118 +108,118 @@ func (a *App) GetLatestConstructionRecords(agents []string, reset string) ([]typ
 	}
 	return results, nil
 }
-
-// GetAllAgentsFromDB returns all agents and their active status from Turso DB.
-func (a *App) GetAllAgentsFromDB(reset string) (map[string]AgentStatus, error) {
-	res := make(map[string]AgentStatus)
-	// We use the stored Reset in App struct which should be updated periodically or at start
-
-	rows, err := a.DB.Query(`
-		SELECT symbol, credits 
-		FROM agents 
-		WHERE reset = ? 
-	`, reset)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query agents: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var symbol string
-		var credits int64
-		if err := rows.Scan(&symbol, &credits); err != nil {
-			continue
-		}
-		res[symbol] = AgentStatus{
-			Active:  credits != 175000,
-			Credits: credits,
-		}
-	}
-	return res, nil
-}
-
-// GetStats returns the latest server stats for the current reset.
-func (a *App) GetStats(reset string) (map[string]interface{}, error) {
-
-	var marketUpdate time.Time
-	var agents, accounts, ships, systems, waypoints int
-	var status, version string
-	var nextReset time.Time
-
-	err := a.DB.QueryRow(`
-		SELECT marketUpdate, agents, accounts, ships, systems, waypoints, status, version, nextReset
-		FROM stats
-		WHERE reset = ?
-	`, reset).Scan(&marketUpdate, &agents, &accounts, &ships, &systems, &waypoints, &status, &version, &nextReset)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return map[string]interface{}{
-		"reset":        reset,
-		"marketUpdate": marketUpdate,
-		"agents":       agents,
-		"accounts":     accounts,
-		"ships":        ships,
-		"systems":      systems,
-		"waypoints":    waypoints,
-		"status":       status,
-		"version":      version,
-		"nextReset":    nextReset,
-	}, nil
-}
+//
+// // GetAllAgentsFromDB returns all agents and their active status from Turso DB.
+// // done
+// func GetAllAgentsFromDB(reset string) (map[string]AgentStatus, error) {
+// 	res := make(map[string]AgentStatus)
+// 	// We use the stored Reset in App struct which should be updated periodically or at start
+//
+// 	rows, err := a.DB.Query(`
+// 		SELECT symbol, credits 
+// 		FROM agents 
+// 		WHERE reset = ? 
+// 	`, reset)
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to query agents: %w", err)
+// 	}
+// 	defer rows.Close()
+//
+// 	for rows.Next() {
+// 		var symbol string
+// 		var credits int64
+// 		if err := rows.Scan(&symbol, &credits); err != nil {
+// 			continue
+// 		}
+// 		res[symbol] = AgentStatus{
+// 			Active:  credits != 175000,
+// 			Credits: credits,
+// 		}
+// 	}
+// 	return res, nil
+// }
+//
+// // GetStats returns the latest server stats for the current reset.
+// // done
+// func GetStats(reset string) (map[string]interface{}, error) {
+// 	var marketUpdate time.Time
+// 	var agents, accounts, ships, systems, waypoints int
+// 	var status, version string
+// 	var nextReset time.Time
+//
+// 	err := a.DB.QueryRow(`
+// 		SELECT marketUpdate, agents, accounts, ships, systems, waypoints, status, version, nextReset
+// 		FROM stats
+// 		WHERE reset = ?
+// 	`, reset).Scan(&marketUpdate, &agents, &accounts, &ships, &systems, &waypoints, &status, &version, &nextReset)
+//
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	return map[string]interface{}{
+// 		"reset":        reset,
+// 		"marketUpdate": marketUpdate,
+// 		"agents":       agents,
+// 		"accounts":     accounts,
+// 		"ships":        ships,
+// 		"systems":      systems,
+// 		"waypoints":    waypoints,
+// 		"status":       status,
+// 		"version":      version,
+// 		"nextReset":    nextReset,
+// 	}, nil
+// }
 
 // GetLeaderboard returns the leaderboard for the current reset.
 // type can be 'credits' or 'charts'.
-func (a *App) GetLeaderboard(leaderboardType string, reset string) ([]map[string]interface{}, error) {
-	slog.Debug("getting leaderboard details", "type", leaderboardType)
-	if a.Reset == "" {
-		return nil, fmt.Errorf("reset not set in App struct")
-	}
-
-	var credits, charts string
-	err := a.DB.QueryRow(`
-		SELECT credits, charts
-		FROM leaderboard
-		WHERE reset = ?
-	`, reset).Scan(&credits, &charts)
-	if err != nil {
-		return nil, err
-	}
-
-	var rawData string
-	if leaderboardType == "credits" {
-		rawData = credits
-	} else {
-		rawData = charts
-	}
-
-	var results []map[string]interface{}
-	if rawData == "" {
-		return results, nil
-	}
-
-	// Data is stored as SYMBOL,VALUE|SYMBOL,VALUE
-	entries := strings.Split(rawData, "|")
-	for _, entry := range entries {
-		parts := strings.Split(entry, ",")
-		if len(parts) != 2 {
-			continue
-		}
-		symbol := parts[0]
-		count, _ := strconv.ParseInt(parts[1], 10, 64)
-		results = append(results, map[string]interface{}{
-			"symbol": symbol,
-			"count":  count,
-		})
-	}
-	return results, nil
-}
+// func GetLeaderboard(leaderboardType string, reset string) ([]map[string]interface{}, error) {
+// 	slog.Debug("getting leaderboard details", "type", leaderboardType)
+// 	if a.Reset == "" {
+// 		return nil, fmt.Errorf("reset not set in App struct")
+// 	}
+//
+// 	var credits, charts string
+// 	err := a.DB.QueryRow(`
+// 		SELECT credits, charts
+// 		FROM leaderboard
+// 		WHERE reset = ?
+// 	`, reset).Scan(&credits, &charts)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+//
+// 	var rawData string
+// 	if leaderboardType == "credits" {
+// 		rawData = credits
+// 	} else {
+// 		rawData = charts
+// 	}
+//
+// 	var results []map[string]interface{}
+// 	if rawData == "" {
+// 		return results, nil
+// 	}
+//
+// 	// Data is stored as SYMBOL,VALUE|SYMBOL,VALUE
+// 	entries := strings.Split(rawData, "|")
+// 	for _, entry := range entries {
+// 		parts := strings.Split(entry, ",")
+// 		if len(parts) != 2 {
+// 			continue
+// 		}
+// 		symbol := parts[0]
+// 		count, _ := strconv.ParseInt(parts[1], 10, 64)
+// 		results = append(results, map[string]interface{}{
+// 			"symbol": symbol,
+// 			"count":  count,
+// 		})
+// 	}
+// 	return results, nil
+// }
 
 // GetJumpgates returns all jumpgates for the current reset.
-func (a *App) GetJumpgates(reset string) ([]map[string]interface{}, error) {
-
+func GetJumpgates(reset string) ([]map[string]interface{}, error) {
 	rows, err := a.DB.Query(`
 		SELECT system, headquarters, jumpgate, completetimestamp, status
 		FROM jumpgates

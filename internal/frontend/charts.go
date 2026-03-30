@@ -1,4 +1,4 @@
-package main
+package frontend
 
 import (
 	"html/template"
@@ -8,10 +8,9 @@ import (
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
-	"github.com/papaburgs/fluffy-robot/internal/types"
 )
 
-func (a *App) Last24CreditChart(agents []string) *charts.Line {
+func Last24CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
@@ -39,7 +38,7 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 24*time.Hour)
+		hist, err := GetAgentRecordsFromDB(p, resets[0], 24*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records from DB", "error", err)
 			continue
@@ -55,7 +54,7 @@ func (a *App) Last24CreditChart(agents []string) *charts.Line {
 	return line
 }
 
-func (a *App) Last4CreditChart(agents []string) *charts.Line {
+func Last4CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-4 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
@@ -81,7 +80,7 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 4*time.Hour)
+		hist, err := GetAgentRecordsFromDB(p, resets[0], 4*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records from DB", "error", err)
 			continue
@@ -98,7 +97,7 @@ func (a *App) Last4CreditChart(agents []string) *charts.Line {
 	return line
 }
 
-func (a *App) Last1CreditChart(agents []string) *charts.Line {
+func Last1CreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-1 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
@@ -124,7 +123,7 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 1*time.Hour)
+		hist, err := GetAgentRecordsFromDB(p, resets[0], 1*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records from DB", "error", err)
 			continue
@@ -139,7 +138,7 @@ func (a *App) Last1CreditChart(agents []string) *charts.Line {
 	return line
 }
 
-func (a *App) Last7dCreditChart(agents []string) *charts.Line {
+func Last7dCreditChart(agents []string) *charts.Line {
 	line := charts.NewLine()
 	weekAgoMs := int(time.Now().Add(-7 * 24 * time.Hour).UnixMilli())
 
@@ -158,7 +157,7 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	)
 
 	// Adaptive stride to keep point count reasonable
-	totalPerHour := a.collectPointsPerHour
+	totalPerHour := 12
 	if totalPerHour == 0 {
 		totalPerHour = 12 // assume 5-min cadence
 	}
@@ -173,7 +172,7 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	}
 
 	for _, p := range agents {
-		hist, err := a.GetAgentRecordsFromDB(p, a.Reset, 7*24*time.Hour)
+		hist, err := GetAgentRecordsFromDB(p, resets[0], 7*24*time.Hour)
 		if err != nil {
 			slog.Error("error getting agent records from DB", "error", err)
 			continue
@@ -189,7 +188,7 @@ func (a *App) Last7dCreditChart(agents []string) *charts.Line {
 	return line
 }
 
-func (a *App) JumpgateConstructionChart(data map[string][]types.ConstructionRecord, duration time.Duration) *charts.Line {
+func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration time.Duration) *charts.Line {
 	line := charts.NewLine()
 	tfha := int(time.Now().Add(-duration).UnixMilli())
 	line.SetGlobalOptions(
@@ -234,11 +233,11 @@ type ChartSnippet struct {
 
 type ChartPageData struct {
 	CreditChart       ChartSnippet
-	ConstructionTable []types.ConstructionOverview
+	ConstructionTable []ds.ConstructionOverview
 	ConstructionChart ChartSnippet
 }
 
 // RenderChartFragment renders the chart page content to the ResponseWriter.
-func (a *App) RenderChartFragment(w io.Writer, data ChartPageData) error {
-	return a.t.ExecuteTemplate(w, "chart.html", data)
+func RenderChartFragment(w io.Writer, data ChartPageData) error {
+	return t.ExecuteTemplate(w, "chart.html", data)
 }

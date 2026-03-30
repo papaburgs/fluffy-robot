@@ -1,6 +1,7 @@
-package main
+package frontend
 
 import (
+	"embed"
 	"html/template"
 	"log/slog"
 	"net/http"
@@ -9,30 +10,26 @@ import (
 	"strings"
 	"time"
 
-	"github.com/papaburgs/fluffy-robot/internal/datastore"
+	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
-// AgentStatus holds the current status of an agent
-type AgentStatus struct {
-	Active  bool
-	Credits int64
-}
+// // AgentStatus holds the current status of an agent
+// type AgentStatus struct {
+// 	Active  bool
+// 	Credits int64
+// }
 
 // App is our main application
-type App struct {
-	// Reset is on the server status page, we use it to sort data
-	Reset string
-	// collectPointsPerHour is used to change the charts density
-	collectPointsPerHour int
-	t                    *template.Template
-}
+var (
+	resets []string
+	t      *template.Template
+)
+
+//go:embed static
+var staticFiles embed.FS // This variable now holds the entire 'static' directory
 
 // NewApp returns an app that contains all the handlers for the ui
-func NewApp() *App {
-	var collectEvery = 5 // This should match the collection frequency
-	a := App{
-		collectPointsPerHour: 60 / collectEvery,
-	}
+func StartServer() {
 
 	////////// Static file handling \\\\\\\\\\
 	// define this value to be something in order to use the 'external' css to make it easier to work on
@@ -60,46 +57,34 @@ func NewApp() *App {
 	}
 
 	if templateDir, ok := os.LookupEnv("FLUFFY_TEMPLATE_DIR"); !ok {
-		a.t = template.Must(template.New("").Funcs(funcMap).ParseGlob("templates/*.html"))
+		t = template.Must(template.New("").Funcs(funcMap).ParseGlob("templates/*.html"))
 	} else {
-		a.t = template.Must(template.New("").Funcs(funcMap).ParseGlob(templateDir + "templates/*.html"))
+		t = template.Must(template.New("").Funcs(funcMap).ParseGlob(templateDir + "templates/*.html"))
 	}
 
-	// Perform initial synchronous update
-	a.Reset = datastore.LatestReset()
+	go updateResetLoop()
 
-	go a.updateResetLoop(a.Reset)
+	http.HandleFunc("/", RootHandler)
+	http.HandleFunc("/permissions", PermissionsHandler)
+	http.HandleFunc("/status", HeaderHandler)
+	http.HandleFunc("/chart", LoadChartHandler)
+	http.HandleFunc("/permissions-grid", PermissionsGridHandler)
 
-	return &a
-}
+	http.HandleFunc("/leaderboard", LeaderboardHandler)
+	http.HandleFunc("/stats", StatsHandler)
+	http.HandleFunc("/jumpgates", JumpgatesHandler)
 
-// updateReset performs a single, blocking update of the Reset field.
-func (a *App) updateReset() error {
-	var reset string
-	var nextReset time.Time
-	l := slog.With("function", "updateReset")
+	slog.Info("Starting server on http://localhost on " + portNumber)
+	slog.Warn("Server Done", "Error", http.ListenAndServe(portNumber, nil))
 
-	err := a.DB.QueryRow("SELECT reset, nextReset FROM stats ORDER BY reset DESC LIMIT 1").Scan(&reset, &nextReset)
-	if err != nil {
-		l.Error("failed to fetch reset from database", "error", err)
-		a.Reset = ""
-		return err
-	}
-
-	l.Info("fetched reset from database", "reset", reset, "nextReset", nextReset)
-	return nil
 }
 
 // updateResetLoop continuously updates the Reset field of the App struct in the background.
-func (a *App) updateResetLoop() {
+func updateResetLoop() {
 	l := slog.With("function", "updateResetLoop")
 	for {
-		nextReset := datastore.NextReset()
-		reset := datastore.LatestReset()
-		if a.Reset != reset {
-			l.Info("detected new reset", "reset", reset, "nextReset", nextReset)
-			a.Reset = reset
-		}
+		nextReset := ds.NextReset()
+		resets = ds.AllResets()
 
 		// Sleep until the next reset plus a buffer, or a shorter interval if nextReset is in the past
 		sleepDuration := time.Until(nextReset) + 5*time.Minute

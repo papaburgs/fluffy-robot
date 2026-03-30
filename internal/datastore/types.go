@@ -53,12 +53,32 @@ type LeaderboardRecord struct {
 }
 
 // ***********  Agent types *************** \\
+// Public agent is the type that is returned from the api
+type PublicAgent struct {
+	Credits         int64  `json:"credits"`
+	Headquarters    string `json:"headquarters"`
+	ShipCount       int    `json:"shipCount"`
+	StartingFaction string `json:"startingFaction"`
+	Symbol          string `json:"symbol"`
+}
+
+type TimedAgentRecord struct {
+	Timestamp time.Time
+	ShipCount int
+	Credits   int
+}
+
 type Agent struct {
 	Symbol       string
 	Credits      int64
 	Faction      string
 	Headquarters string
 	System       string
+}
+
+type resetAgentKey struct {
+	Reset string
+	Agent string
 }
 
 type AgentStatus struct {
@@ -102,18 +122,24 @@ type JGConstruction struct {
 	Advcct    int
 }
 
+// these are variables that should be zeroed on startup or after inactivity
+// originally had make these public, but instead, making these just big maps
+// of lists of _the thing_ referenced by reset
+// the getter funcs will filter and manipulate the lists
 var (
 	// ************  Agent vars  ************* \\
-	Agents             map[string]Agent
-	AgentCreditHistory map[string][]DataPoint
-	AgentShipHistory   map[string][]DataPoint
+	Agents          map[string]Agent
+	allAgentHistory map[string][]AgentStatus
 
 	// *********** Stats vars *************** \\
-	StoredStats         Stats
+	StoredStats         map[string]Stats
 	LatestCreditLeaders []LeaderboardEntry
 	LatestChartLeaders  []LeaderboardEntry
 
 	// ************ Jumpgates *************** \\
+	// map of reset to list of jumpgate statuses
+	// other functions return things based on this list
+	jumpgateLists       map[string][]JGInfo
 	jumpgatesBySystem   map[string]JGInfo
 	jumpgatesUnderConst map[string]JGInfo
 )
