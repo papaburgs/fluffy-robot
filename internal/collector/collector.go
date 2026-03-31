@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/papaburgs/fluffy-robot/internal/datastore"
+	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 	"github.com/papaburgs/fluffy-robot/internal/gate"
 )
 
 type Collector struct {
 	baseURL          string
 	gate             *gate.Gate
-	currentReset     string
+	currentReset     ds.Reset
 	nextReset        time.Time
 	currentTimestamp int64
 	apiCalls         int
@@ -176,7 +176,7 @@ func (c *Collector) loopAtReset(ctx context.Context) error {
 
 		// at this point we have a 200, now make sure everything else is ok
 
-		var status datastore.ResponseStatus
+		var status ds.ResponseStatus
 		if err := json.Unmarshal(body, &status); err != nil {
 			l.Error("error unmarshalling, that is weird", "body", string(body))
 			continue

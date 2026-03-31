@@ -22,7 +22,7 @@ import (
 )
 
 var path = "./"
-var reset = ""
+var currentReset Reset = ""
 var resetPath = ""
 var writeJSON = false
 var zeroTimer *time.Timer
@@ -64,35 +64,16 @@ func Init() {
 	go watchTimer()
 }
 
-func UpdateReset(r string) {
+func UpdateReset(r Reset) {
 	l := plog.With("function", "updateReset")
-	reset = r
-	resetPath = filepath.Join(path, reset)
+	currentReset = r
+	resetPath = filepath.Join(path, string(currentReset))
 	err := os.MkdirAll(resetPath, 0755)
 	if err != nil {
 		l.Error("Failed to create directory", "path", path)
 		os.Exit(1)
 	}
 	l.Debug("set reset", "current", resetPath)
-}
-
-type JumpGateAgentListStruct struct {
-	AgentsToCheck  []PublicAgent `json:"agents_to_check"`
-	AgentsToIgnore []PublicAgent `json:"agents_to_ignore"`
-}
-
-type TimedConstructionRecord struct {
-	Timestamp time.Time
-	Fabmat    int
-	Advcct    int
-}
-
-type ConstructionOverview struct {
-	Agent     string
-	Jumpgate  string
-	Fabmat    int
-	Advcct    int
-	Timestamp time.Time
 }
 
 func writeData(basename string, timestamp int64, v any) error {
@@ -146,13 +127,13 @@ func writeData(basename string, timestamp int64, v any) error {
 }
 
 // readData loops over files of a type and returns a map of filename to byte buffer, which can then be decoded by the caller
-func readData(prefix, reset string) (map[string]*bytes.Buffer, error) {
+func readData(prefix string, thisReset Reset) (map[string]*bytes.Buffer, error) {
 	l := plog.With("function", "readData")
 	res := make(map[string]*bytes.Buffer)
 
 	thisPath := resetPath
-	if reset != "" {
-		thisPath = filepath.Join(path, reset)
+	if thisReset != "" {
+		thisPath = filepath.Join(path, string(thisReset))
 	}
 	files, err := os.ReadDir(thisPath)
 	if err != nil {
@@ -200,14 +181,19 @@ func watchTimer() {
 // can be called on startup and also when idle for too long
 func zero() {
 	slog.Debug("Zeroing")
-	Agents = make(map[string]Agent)
-	AgentCreditHistory = make(map[string][]DataPoint)
-	AgentShipHistory = make(map[string][]DataPoint)
-	StoredStats = Stats{}
-	LatestCreditLeaders = []LeaderboardEntry{}
-	LatestChartLeaders = []LeaderboardEntry{}
-	jumpgatesBySystem = make(map[string]JGInfo)
-	jumpgatesUnderConst = make(map[string]JGInfo)
+	slog.Warn("zero needs to be updated")
+	agentsList = make(map[Reset][]Agent)
+	// agentHistory = makemap[Reset][]AgentStatus
+	//
+	// // *********** Stats vars *************** \\
+	// storedStats   map[Reset]Stats
+	// creditLeaders map[Reset][]LeaderboardEntry
+	// chartLeaders  map[Reset][]LeaderboardEntry
+	//
+	// // ************ Jumpgates *************** \\
+	// // map of reset to list of jumpgate statuses
+	// // other functions return things based on this list
+	// jumpgateLists map[Reset][]JGInfo
 }
 
 func SystemFromWaypoint(w string) string {

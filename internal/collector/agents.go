@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/datastore"
+	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
 func (c *Collector) updateStatus(ctx context.Context) error {
@@ -30,8 +31,8 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 	l.Debug("api call done")
 
 	// set this locally as we use it often
-	c.reset = status.ResetDate
-	datastore.UpdateReset(c.reset)
+	c.currentReset = ds.Reset(status.ResetDate)
+	datastore.UpdateReset(c.currentReset)
 	// this will be checked after and timers will be adjusted
 	c.nextReset = status.ServerResets.Next
 

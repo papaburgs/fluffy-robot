@@ -12,6 +12,10 @@ const (
 	Complete
 )
 
+// To make the keys of maps more descriptive, make a 'reset' string type
+
+type Reset string
+
 type ResponseStatus struct {
 	Leaderboards struct {
 		MostCredits []struct {
@@ -122,24 +126,45 @@ type JGConstruction struct {
 	Advcct    int
 }
 
+type JumpGateAgentListStruct struct {
+	AgentsToCheck  []PublicAgent `json:"agents_to_check"`
+	AgentsToIgnore []PublicAgent `json:"agents_to_ignore"`
+}
+
+type TimedConstructionRecord struct {
+	Timestamp time.Time
+	Fabmat    int
+	Advcct    int
+}
+
+type ConstructionOverview struct {
+	Agent     string
+	Jumpgate  string
+	Fabmat    int
+	Advcct    int
+	Timestamp time.Time
+}
+
 // these are variables that should be zeroed on startup or after inactivity
 // originally had make these public, but instead, making these just big maps
 // of lists of _the thing_ referenced by reset
-// the getter funcs will filter and manipulate the lists
+// the getter funcs will filter and manipulate the lists when needed
 var (
 	// ************  Agent vars  ************* \\
-	Agents          map[string]Agent
-	allAgentHistory map[string][]AgentStatus
+	// maps the reset to the list of agents
+	agentsList   map[Reset][]Agent
+	agentHistory map[Reset][]AgentStatus
 
 	// *********** Stats vars *************** \\
-	StoredStats         map[string]Stats
-	LatestCreditLeaders []LeaderboardEntry
-	LatestChartLeaders  []LeaderboardEntry
+	stats         map[Reset]Stats
+	creditLeaders map[Reset][]LeaderboardEntry
+	chartLeaders  map[Reset][]LeaderboardEntry
 
 	// ************ Jumpgates *************** \\
 	// map of reset to list of jumpgate statuses
 	// other functions return things based on this list
-	jumpgateLists       map[string][]JGInfo
-	jumpgatesBySystem   map[string]JGInfo
-	jumpgatesUnderConst map[string]JGInfo
+	jumpgateLists map[Reset][]JGInfo
+	// these are getting changed to getter funcs that filter on above
+	// jumpgatesBySystem   map[Reset]JGInfo
+	// jumpgatesUnderConst map[Reset]JGInfo
 )

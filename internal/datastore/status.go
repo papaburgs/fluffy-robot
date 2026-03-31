@@ -54,10 +54,10 @@ func StoreLeaderboards(r ResponseStatus) error {
 	return nil
 }
 
-func LoadStats(thisReset string) error {
+func loadStats(thisReset Reset) error {
 	l := plog.With("function", "LoadAgents")
 	zeroTimer.Reset(cacheLifetime)
-	if StoredStats[thisReset].Reset == "" {
+	if stats[thisReset].Reset == "" {
 		l.Info("Cache built, this is noop")
 		return nil
 	}
@@ -85,21 +85,21 @@ func LoadStats(thisReset string) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		StoredStats[thisReset] = v
+		stats[thisReset] = v
 	}
 	return nil
 }
 
-func GetStats(thisReset string) Stats {
+func GetStats(thisReset Reset) Stats {
 	l := plog.With("function", "GetStats")
-	if err := LoadStats(thisReset); err != nil {
+	if err := loadStats(thisReset); err != nil {
 		l.Error("error loading stats", "thisReset", thisReset, "error", err)
 		return Stats{}
 	}
-	return StoredStats[thisReset]
+	return stats[thisReset]
 }
 
-func LoadLeaderboard(thisReset string) error {
+func loadLeaderboard(thisReset Reset) error {
 	l := plog.With("function", "LoadLeaderboard")
 	zeroTimer.Reset(cacheLifetime)
 	// use readdata to get back a map of filename to byte buffers
@@ -126,19 +126,20 @@ func LoadLeaderboard(thisReset string) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		LatestCreditLeaders = v.CreditsList
-		LatestChartLeaders = v.ChartsList
+		creditLeaders[thisReset] = v.CreditsList
+		chartLeaders[thisReset] = v.ChartsList
 	}
 	return nil
 }
 
-func GetLeaderboard(thisReset string) (credits, charts []LeaderboardEntry) {
+// GetLeaderboard returns the credit and charts leaderboard for provided reset
+func GetLeaderboard(thisReset Reset) ([]LeaderboardEntry, []LeaderboardEntry) {
 	l := plog.With("function", "GetLeaderboard")
-	if err := LoadLeaderboard(thisReset); err != nil {
+	if err := loadLeaderboard(thisReset); err != nil {
 		l.Error("error loading leaderboard", "thisReset", thisReset, "error", err)
 		return nil, nil
 	}
-	return LatestCreditLeaders, LatestChartLeaders
+	return creditLeaders[thisReset], chartLeaders[thisReset]
 }
 
 // AllResets reads each directory in the path directory and makes a list
@@ -167,12 +168,11 @@ func AllResets() []string {
 	return resets
 }
 
-func LatestReset() string {
-	return reset
+func LatestReset() Reset {
+	return currentReset
 }
 
 func NextReset() time.Time {
-	thisReset := AllResets()[0]
-	LoadStats(thisReset)
-	return StoredStats[reset].NextReset
+	loadStats(currentReset)
+	return stats[currentReset].NextReset
 }
