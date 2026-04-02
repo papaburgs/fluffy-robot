@@ -44,6 +44,8 @@ func (c *Collector) Run(ctx context.Context) {
 	l := c.plog.With("function", "Run")
 
 	var err error
+
+	// need to call updateStatus right away to update current reset
 	err = c.updateStatus(ctx)
 	if err != nil {
 		slog.Error("Error running updateStatus", "error", err)
@@ -52,21 +54,8 @@ func (c *Collector) Run(ctx context.Context) {
 	// if err != nil {
 	// 	slog.Error("Error running updateStatus", "error", err)
 	// }
-	// l.Info("agents should be updated, test variable builders")
-	// time.Sleep(time.Second)
-	// begin := time.Now()
-	// datastore.LoadAgents(c.reset)
-	// datastore.LoadAgentHistory(c.reset)
-
-	// l.Info("done loading content, _charts_ can now use them")
-	// fmt.Println("------")
-	// fmt.Println(datastore.Agents["BURG"])
-	// fmt.Println("------")
-	// fmt.Println(datastore.AgentShipHistory["BURG"])
-	// fmt.Println("------")
-	// l.Info("that took some time", "elapsed", time.Now().Sub(begin))
-
-	// l.Warn("sleeping before first jumpgate update")
+	//
+	// // l.Warn("sleeping before first jumpgate update")
 	// time.Sleep(1 * time.Minute)
 	// err = c.updateInactiveJumpgates(ctx)
 	// if err != nil {

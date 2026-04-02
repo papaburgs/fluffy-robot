@@ -3,11 +3,11 @@ package frontend
 import (
 	"html/template"
 	"io"
-	"log/slog"
 	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	"github.com/go-echarts/go-echarts/v2/opts"
+	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
 func Last24CreditChart(agents []string) *charts.Line {
@@ -38,15 +38,11 @@ func Last24CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := GetAgentRecordsFromDB(p, resets[0], 24*time.Hour)
-		if err != nil {
-			slog.Error("error getting agent records from DB", "error", err)
-			continue
-		}
+		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, 24*time.Hour)
 		items := make([]opts.LineData, 0)
 		for i, r := range hist {
 			if i%10 == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Value}})
 			}
 		}
 		line.AddSeries(p, items)
@@ -80,15 +76,11 @@ func Last4CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := GetAgentRecordsFromDB(p, resets[0], 4*time.Hour)
-		if err != nil {
-			slog.Error("error getting agent records from DB", "error", err)
-			continue
-		}
+		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, 4*time.Hour)
 		items := make([]opts.LineData, 0)
 		for i, r := range hist {
 			if i%2 == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Value}})
 			}
 		}
 		line.AddSeries(p, items)
@@ -123,14 +115,10 @@ func Last1CreditChart(agents []string) *charts.Line {
 		}),
 	)
 	for _, p := range agents {
-		hist, err := GetAgentRecordsFromDB(p, resets[0], 1*time.Hour)
-		if err != nil {
-			slog.Error("error getting agent records from DB", "error", err)
-			continue
-		}
+		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, 1*time.Hour)
 		items := make([]opts.LineData, 0)
 		for _, r := range hist {
-			items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+			items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Value}})
 		}
 		line.AddSeries(p, items)
 	}
@@ -172,15 +160,11 @@ func Last7dCreditChart(agents []string) *charts.Line {
 	}
 
 	for _, p := range agents {
-		hist, err := GetAgentRecordsFromDB(p, resets[0], 7*24*time.Hour)
-		if err != nil {
-			slog.Error("error getting agent records from DB", "error", err)
-			continue
-		}
+		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, 7*24*time.Hour)
 		items := make([]opts.LineData, 0, len(hist)/stride+1)
 		for i, r := range hist {
 			if i%stride == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Credits}})
+				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Value}})
 			}
 		}
 		line.AddSeries(p, items)

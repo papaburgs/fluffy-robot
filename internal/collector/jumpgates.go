@@ -33,7 +33,7 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 		thisSystem := ds.SystemFromWaypoint(a.Headquarters)
 		thisJG, ok := jgs[thisSystem]
 		if !ok {
-			l.Debug("Not found")
+			l.Debug("Not found in current jumpgates")
 			// if we don't have this in the db, we need to add it to the activeSystems map to check it later.
 			jumpgateSymbol, err := c.findJumpgateSymbol(ctx, thisSystem)
 			if err != nil {

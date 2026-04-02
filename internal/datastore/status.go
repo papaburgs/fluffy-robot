@@ -55,9 +55,11 @@ func StoreLeaderboards(r ResponseStatus) error {
 }
 
 func loadStats(thisReset Reset) error {
-	l := plog.With("function", "LoadAgents")
+	l := plog.With("function", "LoadStats")
+
 	zeroTimer.Reset(cacheLifetime)
-	if stats[thisReset].Reset == "" {
+	l.Debug("try to load stats", "reset", thisReset)
+	if stats[thisReset].Reset != "" {
 		l.Info("Cache built, this is noop")
 		return nil
 	}
@@ -92,6 +94,7 @@ func loadStats(thisReset Reset) error {
 
 func GetStats(thisReset Reset) Stats {
 	l := plog.With("function", "GetStats")
+	l.Debug("try to load stats", "reset", thisReset)
 	if err := loadStats(thisReset); err != nil {
 		l.Error("error loading stats", "thisReset", thisReset, "error", err)
 		return Stats{}
@@ -169,10 +172,26 @@ func AllResets() []string {
 }
 
 func LatestReset() Reset {
+	for {
+		if currentReset == "" {
+			plog.Debug("reset is not updated yet")
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
+	}
 	return currentReset
 }
 
 func NextReset() time.Time {
+	for {
+		if currentReset == "" {
+			plog.Debug("reset is not updated yet")
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
+	}
 	loadStats(currentReset)
 	return stats[currentReset].NextReset
 }

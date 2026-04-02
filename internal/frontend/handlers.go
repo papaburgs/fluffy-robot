@@ -1,15 +1,21 @@
 package frontend
 
 import (
-	"encoding/json"
+	"archive/tar"
+	"compress/gzip"
+	"fmt"
 	"html/template"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
+	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
@@ -57,23 +63,20 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 			Script:  template.HTML(snippet.Script),
 		}
 	}
-
 	// Get latest construction overview
-	overview, err := GetLatestConstructionRecords(agents, resets[0])
-	if err == nil && len(overview) > 0 {
-		pageData.ConstructionTable = overview
-	}
+	// returns array of Construction record
+	overview := ds.GetLatestConstructionRecords(ds.Reset(resets[0]), agents)
+	pageData.ConstructionTable = overview
 
 	// Generate construction chart if any data
-	recs, err := GetConstructionRecordsFromDB(agents, resets[0], duration)
-	if err == nil && len(recs) > 0 {
-		constChart := JumpgateConstructionChart(recs, duration)
-		if constChart != nil {
-			snippet := constChart.RenderSnippet()
-			pageData.ConstructionChart = ChartSnippet{
-				Element: template.HTML(snippet.Element),
-				Script:  template.HTML(snippet.Script),
-			}
+	// returns map[string][]types.ConstructionRecord,
+	recs := ds.GetConstructionRecords(ds.Reset(resets[0]), agents, duration)
+	constChart := JumpgateConstructionChart(recs, duration)
+	if constChart != nil {
+		snippet := constChart.RenderSnippet()
+		pageData.ConstructionChart = ChartSnippet{
+			Element: template.HTML(snippet.Element),
+			Script:  template.HTML(snippet.Script),
 		}
 	}
 
@@ -83,12 +86,9 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 func PermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("PermissionsHandler")
-	agents, err := GetAllAgentsFromDB(resets[0])
-	if err != nil {
-		slog.Error("Error getting agents from DB", "error", err)
-		http.Error(w, "Error getting agents", http.StatusInternalServerError)
-		return
-	}
+	// usually, we would pull this from the request
+	reset := ds.LatestReset()
+	agents := ds.GetAgents(reset)
 
 	t.ExecuteTemplate(w, "permissions.html", map[string]interface{}{
 		"Agents": agents,
@@ -104,26 +104,72 @@ func HeaderHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func ExportHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("ExportHandler")
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", `attachment; filename="backup.json"`)
+	plog.Info("Export Handler called")
 
-	// Export limited data since we don't have local state
-	data := map[string]interface{}{
-		"reset": resets[0],
-	}
+	// 1. Set the filename with a timestamp
+	filename := "data_export.tar.gz"
+	w.Header().Set("Content-Type", "application/gzip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 
-	b, err := json.Marshal(data)
+	// 2. Initialize writers
+	gw := gzip.NewWriter(w)
+	defer gw.Close()
+	tw := tar.NewWriter(gw)
+	defer tw.Close()
+
+	srcDir := ds.DataPath()
+
+	// 3. Walk the directory
+	err := filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		// Skip the root directory itself
+		if path == srcDir {
+			return nil
+		}
+
+		// Create a tar header
+		header, err := tar.FileInfoHeader(info, info.Name())
+		if err != nil {
+			return err
+		}
+
+		// Ensure the path inside the tar matches your structure (2026-03-29/file.gob.zst)
+		relPath, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+		header.Name = relPath
+
+		// Write header
+		if err := tw.WriteHeader(header); err != nil {
+			return err
+		}
+
+		// If it's a directory, we're done with this iteration
+		if info.IsDir() {
+			return nil
+		}
+
+		// 4. Stream the file content
+		file, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+
+		_, err = io.Copy(tw, file)
+		return err
+	})
+
 	if err != nil {
-		http.Error(w, "failed to marshal export data", http.StatusInternalServerError)
-		return
+		http.Error(w, "Failed to package data", http.StatusInternalServerError)
 	}
-	_, _ = w.Write(b)
 }
 
 func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("PermissionsGridHandler")
-	// This handler returns a partial (HTML) for HTMX
 
 	type data struct {
 		Name      string
@@ -132,12 +178,7 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		IsChecked bool
 	}
 	d := []data{}
-	agents, err := GetAllAgentsFromDB(resets[0])
-	if err != nil {
-		slog.Error("Error getting agents from DB", "error", err)
-		http.Error(w, "Error getting agents", http.StatusInternalServerError)
-		return
-	}
+	agents := ds.GetAgents(ds.LatestReset())
 	q := r.URL.Query()
 	searchStr := strings.ToLower(q.Get("agentSearch"))
 	hideInactive := q.Get("hideInactive") == "on"
@@ -157,7 +198,7 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		// Filter inactive if requested
-		if hideInactive && !details.Active {
+		if hideInactive && details.Credits != 175000 {
 			continue
 		}
 
@@ -165,7 +206,7 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		d = append(d, data{
 			Name:      agent,
 			Credits:   details.Credits,
-			IsActive:  details.Active,
+			IsActive:  details.Credits == 175000,
 			IsChecked: ok,
 		})
 	}
@@ -183,47 +224,43 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 
 	t.ExecuteTemplate(w, "permissions-grid.html", d)
 }
+
 func LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("LeaderboardHandler")
 	leaderboardType := r.URL.Query().Get("type")
 	if leaderboardType == "" {
 		leaderboardType = "credits"
 	}
+	slog.Debug("Have leaderboard type", "lbt", leaderboardType)
 	myAgent := r.URL.Query().Get("myAgent")
 
-	data, err := GetLeaderboard(leaderboardType, resets[0])
-	if err != nil {
-		slog.Error("failed to get leaderboard", "error", err)
-		http.Error(w, "failed to get leaderboard", http.StatusInternalServerError)
-		return
-	}
+	creditLB, chartLB := ds.GetLeaderboard(ds.LatestReset())
 
-	// If template doesn't exist yet, this will fail. We need to create it.
-	t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
+	data := creditLB
+	if leaderboardType == "charts" {
+		data = chartLB
+	}
+	
+	slog.Debug("have data", "data", data, "lbt", leaderboardType, "agent", myAgent)
+
+	err := t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
 		"Type":    leaderboardType,
 		"Data":    data,
 		"MyAgent": myAgent,
 	})
+	if err != nil {
+		slog.Error("template error", "error", err)
+	}
 }
 
 func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("StatsHandler")
-	stats, err := GetStats(resets[0])
-	if err != nil {
-		slog.Error("failed to get stats", "error", err)
-		http.Error(w, "failed to get stats", http.StatusInternalServerError)
-		return
-	}
+	stats := ds.GetStats(ds.LatestReset())
 	t.ExecuteTemplate(w, "stats.html", stats)
 }
 
 func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("JumpgatesHandler")
-	gates, err := GetJumpgates(resets[0])
-	if err != nil {
-		slog.Error("failed to get jumpgates", "error", err)
-		http.Error(w, "failed to get jumpgates", http.StatusInternalServerError)
-		return
-	}
+	gates := ds.GetJumpgates(ds.LatestReset())
 	t.ExecuteTemplate(w, "jumpgates.html", gates)
 }

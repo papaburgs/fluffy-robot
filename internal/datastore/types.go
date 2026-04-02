@@ -131,11 +131,11 @@ type JumpGateAgentListStruct struct {
 	AgentsToIgnore []PublicAgent `json:"agents_to_ignore"`
 }
 
-type TimedConstructionRecord struct {
-	Timestamp time.Time
-	Fabmat    int
-	Advcct    int
-}
+// type TimedConstructionRecord struct {
+// 	Timestamp time.Time
+// 	Fabmat    int
+// 	Advcct    int
+// }
 
 type ConstructionOverview struct {
 	Agent     string
@@ -162,9 +162,9 @@ var (
 
 	// ************ Jumpgates *************** \\
 	// map of reset to list of jumpgate statuses
-	// other functions return things based on this list
 	jumpgateLists map[Reset][]JGInfo
-	// these are getting changed to getter funcs that filter on above
-	// jumpgatesBySystem   map[Reset]JGInfo
-	// jumpgatesUnderConst map[Reset]JGInfo
+
+	// ************ Constructions *************** \\
+	// map of reset to list of construction statuses
+	constructionsLists map[Reset][]JGConstruction
 )

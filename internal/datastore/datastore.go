@@ -32,6 +32,9 @@ var plog *slog.Logger
 func Init() {
 	plog = slog.With("package", "datastore")
 	l := plog.With("function", "init")
+	l.Debug("starting watch timer")
+	zeroTimer = time.NewTimer(time.Millisecond)
+	go watchTimer()
 	env, ok := os.LookupEnv("FLUFFY_STORAGE_PATH")
 	if ok {
 		path = env
@@ -56,14 +59,14 @@ func Init() {
 		for _, a := range []string{"yes", "y", "true"} {
 			if strings.ToLower(env) == a {
 				writeJSON = true
-				l.Debug("writing json")
 			}
 		}
 	}
-	zeroTimer = time.NewTimer(time.Millisecond)
-	go watchTimer()
+	l.Debug("Init complete", "path", path, "cacheLifetime", cacheLifetime, "outputJson", writeJSON)
 }
 
+// UpdateReset is called on the status update function
+// this needs to run right away so we have resets
 func UpdateReset(r Reset) {
 	l := plog.With("function", "updateReset")
 	currentReset = r
@@ -181,22 +184,21 @@ func watchTimer() {
 // can be called on startup and also when idle for too long
 func zero() {
 	slog.Debug("Zeroing")
-	slog.Warn("zero needs to be updated")
 	agentsList = make(map[Reset][]Agent)
-	// agentHistory = makemap[Reset][]AgentStatus
-	//
-	// // *********** Stats vars *************** \\
-	// storedStats   map[Reset]Stats
-	// creditLeaders map[Reset][]LeaderboardEntry
-	// chartLeaders  map[Reset][]LeaderboardEntry
-	//
-	// // ************ Jumpgates *************** \\
-	// // map of reset to list of jumpgate statuses
-	// // other functions return things based on this list
-	// jumpgateLists map[Reset][]JGInfo
+	agentHistory = make(map[Reset][]AgentStatus)
+	stats = make(map[Reset]Stats)
+	creditLeaders = make(map[Reset][]LeaderboardEntry)
+	chartLeaders = make(map[Reset][]LeaderboardEntry)
+	jumpgateLists = make(map[Reset][]JGInfo)
+	constructionsLists = make(map[Reset][]JGConstruction)
 }
 
 func SystemFromWaypoint(w string) string {
 	split := strings.Split(w, "-")
 	return fmt.Sprintf("%s-%s", split[0], split[1])
+}
+
+// DataPath returns the path where the data is stored (for the export endpoint
+func DataPath() string {
+	return path
 }

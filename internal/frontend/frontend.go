@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -19,10 +20,10 @@ import (
 // 	Credits int64
 // }
 
-// App is our main application
 var (
 	resets []string
 	t      *template.Template
+	plog   *slog.Logger
 )
 
 //go:embed static
@@ -30,13 +31,30 @@ var staticFiles embed.FS // This variable now holds the entire 'static' director
 
 // NewApp returns an app that contains all the handlers for the ui
 func StartServer() {
+	plog = slog.With("package", "frontend")
+
+	funcMap := template.FuncMap{
+		"add": func(a, b int) int {
+			return a + b
+		},
+	}
+
+	templateDir := "internal/frontend"
+	if env, ok := os.LookupEnv("FLUFFY_TEMPLATE_DIR"); ok {
+		plog.Debug("using environment for template dir", "env", env)
+		templateDir = env
+	} else {
+		plog.Debug("generating templates and static from default path")
+	}
+	plog.Debug("generating templates", "path", templateDir)
+	t = template.Must(template.New("").Funcs(funcMap).ParseGlob(filepath.Join(templateDir, "templates", "*.html")))
 
 	////////// Static file handling \\\\\\\\\\
 	// define this value to be something in order to use the 'external' css to make it easier to work on
 	// leaving it unset will embed the directory instead to make it easier for a server
 	if _, ok := os.LookupEnv("FLUFFY_STATIC_DEV"); ok {
 		// Dev case
-		fs := http.FileServer(http.Dir("./static"))
+		fs := http.FileServer(http.Dir(filepath.Join(templateDir, "static")))
 		http.Handle("/static/", http.StripPrefix("/static/", fs))
 	} else {
 		// production case
@@ -50,15 +68,12 @@ func StartServer() {
 	if !strings.HasPrefix(portNumber, ":") {
 		portNumber = ":" + portNumber
 	}
-	funcMap := template.FuncMap{
-		"add": func(a, b int) int {
-			return a + b
-		},
-	}
 
 	if templateDir, ok := os.LookupEnv("FLUFFY_TEMPLATE_DIR"); !ok {
-		t = template.Must(template.New("").Funcs(funcMap).ParseGlob("templates/*.html"))
+		plog.Debug("generating templates from default path")
+		t = template.Must(template.New("").Funcs(funcMap).ParseGlob("internal/frontend/templates/*.html"))
 	} else {
+		plog.Debug("generating templates", "path", templateDir)
 		t = template.Must(template.New("").Funcs(funcMap).ParseGlob(templateDir + "templates/*.html"))
 	}
 
@@ -83,8 +98,12 @@ func StartServer() {
 func updateResetLoop() {
 	l := slog.With("function", "updateResetLoop")
 	for {
-		nextReset := ds.NextReset()
+		l.Debug("find all resets we have data for")
 		resets = ds.AllResets()
+		l.Debug("find next reset")
+		nextReset := ds.NextReset()
+
+		l.Debug("Ready to sleep", "resets", resets, "next reset", nextReset)
 
 		// Sleep until the next reset plus a buffer, or a shorter interval if nextReset is in the past
 		sleepDuration := time.Until(nextReset) + 5*time.Minute

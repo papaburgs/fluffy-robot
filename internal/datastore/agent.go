@@ -36,7 +36,7 @@ func StoreAgents(apiAgents []PublicAgent, now int64) {
 }
 
 // LoadAgents makes the Agents map
-func LoadAgents(thisReset Reset) error {
+func loadAgents(thisReset Reset) error {
 	l := plog.With("function", "LoadAgents")
 	zeroTimer.Reset(cacheLifetime)
 	if len(agentsList[thisReset]) > 0 {
@@ -71,28 +71,6 @@ func LoadAgents(thisReset Reset) error {
 	l.Debug("loaded agents", "count", len(agentsList[thisReset]))
 	return nil
 }
-
-// GetAgents returns a map of agent name to agent data for provided reset
-func GetAgents(thisReset Reset) map[string]Agent {
-	l := plog.With("function", "GetAgents")
-	if err := LoadAgents(thisReset); err != nil {
-		l.Error("error loading agents", "reset", thisReset, "error", err)
-		return nil
-	}
-	res := make(map[string]Agent)
-	for _, a := range agentsList[thisReset] {
-		res[a.Symbol] = a
-	}
-	return res
-}
-
-// LoadAgentHistory procedure
-// save internal map of reset date to list of agent records
-// that is zeroed when idle
-// front end can call a function to Get Agent records of either ships or credits
-// after a specfic point
-// At that point we make the required data set and return it
-// if we it is taking too long to make we can make a cache for it.
 
 // loadAgentHistory gets all the data from a reset and makes a list
 // then user called functions use that list to make specific maps
@@ -161,5 +139,19 @@ func GetAgentRecordsShips(thisReset Reset, agent string, dur time.Duration) []Da
 		}
 	}
 	l.Debug("Got agent records for ships", "reset", thisReset, "agent", agent, "duration", time.Now().Sub(start))
+	return res
+}
+
+// GetAgents returns a map of agent name to agent data for provided reset
+func GetAgents(thisReset Reset) map[string]Agent {
+	l := plog.With("function", "GetAgents")
+	if err := loadAgents(thisReset); err != nil {
+		l.Error("error loading agents", "reset", thisReset, "error", err)
+		return nil
+	}
+	res := make(map[string]Agent)
+	for _, a := range agentsList[thisReset] {
+		res[a.Symbol] = a
+	}
 	return res
 }

@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"encoding/gob"
+	"time"
 )
 
 // UpdateJumpGates overwrites the current jumpgate data with the provided list
@@ -62,6 +63,37 @@ func AddConstructions(cList []JGConstruction, ts int64) {
 	writeData("construction", ts, cList)
 }
 
+// LoadConstructions reads all the construction data in a reset
+// and builds the construcionsLists map entry for the provided reset
+// exported functions will filter and convert this list as needed.
+func loadConstructions(thisReset Reset) error {
+	l := plog.With("function", "LoadJumpgates")
+	zeroTimer.Reset(cacheLifetime)
+	// noop if this is done already
+	if len(constructionsLists[thisReset]) > 0 {
+		return nil
+	}
+
+	m, err := readData("construction-.", thisReset)
+	if err != nil {
+		l.Error("Failed to read data file", "error", err)
+		return err
+	}
+
+	for k, b := range m {
+		l.Debug("de-gobbing file", "filename", k)
+		var v []JGConstruction
+		gobDec := gob.NewDecoder(b)
+
+		if err := gobDec.Decode(&v); err != nil {
+			l.Error("error decoding gob", "error", err)
+			return err
+		}
+		constructionsLists[thisReset] = v
+	}
+	return nil
+}
+
 // LoadJumpgates reads all the jumpgates in a reset
 // and builds the jumpageLists map entry for the provided reset
 // exported functions will filter and convert this list as needed.
@@ -94,7 +126,7 @@ func loadJumpgates(thisReset Reset) error {
 	return nil
 }
 
-// Jumpgates is here, think it is used to get a list of all jumpgates in the systems
+// GetJumpgates makes a map of system to the JGInfo
 func GetJumpgates(thisReset Reset) map[string]JGInfo {
 	if err := loadJumpgates(thisReset); err != nil {
 		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
@@ -138,6 +170,76 @@ func GetJumpgatesNotStarted(thisReset Reset) map[string]JGInfo {
 	return res
 }
 
-// func JumpgatesUnderConst() map[string]JGInfo {
-// 	return jumpgatesUnderConst
+// want to move these to types later, but I don't like these types,
+
+type ConstructionRecord struct {
+	Timestamp time.Time
+	Fabmat    int
+	Advcct    int
+}
+
+// type ConstructionOverview struct {
+// 	Agent     string
+// 	Jumpgate  string
+// 	Fabmat    int
+// 	Advcct    int
+// 	Timestamp time.Time
 // }
+
+func GetConstructionRecords(thisReset Reset, agents []string, dur time.Duration) map[string][]ConstructionRecord {
+	if err := loadJumpgates(thisReset); err != nil {
+		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
+		return nil
+	}
+	agentRecords := GetAgents(thisReset)
+	jumpGates := GetJumpgates(thisReset)
+	loadConstructions(thisReset)
+
+	res := make(map[string][]ConstructionRecord)
+	for _, a := range agents {
+		thisAgent := agentRecords[a]
+		thisJumpgate := jumpGates[thisAgent.System]
+		for _, rec := range constructionsLists[thisReset] {
+			if rec.Jumpgate == thisJumpgate.Jumpgate {
+				res[a] = append(res[a], ConstructionRecord{
+					Timestamp: time.Unix(rec.Timestamp, 0).UTC(),
+					Fabmat:    rec.Fabmat,
+					Advcct:    rec.Advcct,
+				})
+			}
+		}
+	}
+	return res
+}
+func GetLatestConstructionRecords(thisReset Reset, agents []string) []ConstructionOverview {
+	if err := loadJumpgates(thisReset); err != nil {
+		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
+		return nil
+	}
+	agentRecords := GetAgents(thisReset)
+	jumpGates := GetJumpgates(thisReset)
+	loadConstructions(thisReset)
+
+	res := []ConstructionOverview{}
+	for _, a := range agents {
+		jgLatest := JGConstruction{}
+		thisAgent := agentRecords[a]
+		thisJumpgate := jumpGates[thisAgent.System]
+		for _, rec := range constructionsLists[thisReset] {
+			if rec.Jumpgate != thisJumpgate.Jumpgate {
+				continue
+			}
+			if rec.Timestamp > jgLatest.Timestamp {
+				jgLatest = rec
+			}
+		}
+		res = append(res, ConstructionOverview{
+			Agent:     a,
+			Jumpgate:  jgLatest.Jumpgate,
+			Fabmat:    jgLatest.Fabmat,
+			Advcct:    jgLatest.Advcct,
+			Timestamp: time.Unix(jgLatest.Timestamp, 0).UTC(),
+		})
+	}
+	return res
+}

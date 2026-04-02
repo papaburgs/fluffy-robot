@@ -14,10 +14,16 @@
         </thead>
         <tbody>
             {{range $index, $element := .Data}}
-            <tr class="{{if eq $element.symbol $.MyAgent}}my-agent-highlight{{end}}">
-                <td>{{add $index 1}}</td>
-                <td>{{$element.symbol}}</td>
-                <td>{{$element.count}}</td>
+            <tr {{if eq $element.Symbol $.MyAgent}}class="my-agent-highlight"{{end}}>
+                <td>
+                    {{ $index }}
+                </td>
+                <td>
+                   {{ $element.Symbol }}
+                </td>
+                <td>
+                    {{ $element.Value }}
+                </td>
             </tr>
             {{end}}
         </tbody>
