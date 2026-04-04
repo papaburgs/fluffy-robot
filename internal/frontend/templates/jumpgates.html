@@ -11,11 +11,11 @@
         </thead>
         <tbody>
             {{range .}}
-            <tr class="{{if .complete}}complete{{end}}">
-                <td>{{.system}}</td>
-                <td>{{.headquarters}}</td>
-                <td>{{.jumpgate}}</td>
-                <td>{{.status}}{{if .complete}} ({{.completeTime.Format "2006-01-02 15:04"}}){{end}}</td>
+            <tr class="{{if eq .Status 3}}complete{{end}}">
+                <td>{{.System}}</td>
+                <td>{{.Headquarters}}</td>
+                <td>{{.Jumpgate}}</td>
+                <td>{{constructionStatus .Status}}{{if and (eq .Status 3) .Complete}} ({{unixTime .Complete}}){{end}}</td>
             </tr>
             {{end}}
         </tbody>

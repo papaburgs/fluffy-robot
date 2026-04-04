@@ -78,19 +78,20 @@ func loadAgentHistory(thisReset Reset) error {
 	l := plog.With("function", "makeResetListofAgents")
 	start := time.Now()
 	zeroTimer.Reset(cacheLifetime)
-	if len(agentHistory[thisReset]) == 0 {
+	if len(agentHistory[thisReset]) != 0 {
 		l.Info("Cache built, this is noop")
 		return nil
 	}
 	// use readdata to get back a map of filename to byte buffers
-	// NB use the dash to make it more unique
+	// NB use the dash to make it unique
 	m, err := readData("agentsStatus-", thisReset)
 	if err != nil {
 		l.Error("Failed to load agents", "error", err)
 		return err
 	}
 
-	for _, b := range m {
+	agentHistory[thisReset] = []AgentStatus{}
+	for f, b := range m {
 		// make a new decoder on the buffer, which is a Reader
 		gobDec := gob.NewDecoder(b)
 
@@ -100,7 +101,8 @@ func loadAgentHistory(thisReset Reset) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		agentHistory[thisReset] = v
+		l.Debug("processed file", "file", f, "recordds", len(v))
+		agentHistory[thisReset] = append(agentHistory[thisReset], v...)
 	}
 	l.Debug("Generated List of all agents on reset", "reset", thisReset, "duration", time.Now().Sub(start))
 	return nil
@@ -113,14 +115,15 @@ func GetAgentRecordsCredits(thisReset Reset, agent string, dur time.Duration) []
 		l.Error("error making list of agents for reset", "reset", thisReset, "error", err)
 		return nil
 	}
+	l.Debug("Have data", "agent", agent, "reset", thisReset, "duration", dur, "histories", len(agentHistory[thisReset]))
 	var res []DataPoint
-	cutoff := time.Now().Add(-dur).Unix()
+	cutoff := time.Now().Add(-1 * dur).Unix()
 	for _, r := range agentHistory[thisReset] {
-		if r.Symbol == agent && cutoff > r.Timestamp {
+		if r.Symbol == agent && cutoff < r.Timestamp {
 			res = append(res, DataPoint{Timestamp: r.Timestamp, Value: r.Credits})
 		}
 	}
-	l.Debug("Got agent records for credits", "reset", thisReset, "agent", agent, "duration", time.Now().Sub(start))
+	l.Debug("Got agent records for credits", "reset", thisReset, "agent", agent, "duration", time.Now().Sub(start), "records", len(res))
 	return res
 }
 

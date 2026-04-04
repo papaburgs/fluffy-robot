@@ -22,7 +22,9 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("RootHandler")
 	w.Header().Set("Content-Type", "text/html")
 	slog.Info("Incoming request", "endpoint", "index")
-	t.ExecuteTemplate(w, "index.html", nil)
+	if err := t.ExecuteTemplate(w, "index.html", nil); err != nil {
+		slog.Error("template error", "error", err)
+	}
 }
 
 func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
@@ -41,20 +43,22 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	var duration time.Duration
 	var creditChart *charts.Line
 	slog.Info("Incoming request", "endpoint", "chart", "period", period)
+	title := ""
 	switch period {
 	case "24h":
 		duration = 24 * time.Hour
-		creditChart = Last24CreditChart(agents)
+		title = "Last 24 hours"
 	case "4h":
 		duration = 4 * time.Hour
-		creditChart = Last4CreditChart(agents)
+		title = "Last 4 hours"
 	case "7d":
 		duration = 7 * 24 * time.Hour
-		creditChart = Last7dCreditChart(agents)
+		title = "Last 7 days"
 	default:
 		duration = 1 * time.Hour
-		creditChart = Last1CreditChart(agents)
+		title = "Last Hour"
 	}
+	creditChart = CreditChart(agents, duration, title)
 
 	if creditChart != nil {
 		snippet := creditChart.RenderSnippet()
@@ -81,26 +85,30 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html")
-	RenderChartFragment(w, pageData)
+	if err := RenderChartFragment(w, pageData); err != nil {
+		slog.Error("template error", "error", err)
+	}
 }
 
 func PermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("PermissionsHandler")
-	// usually, we would pull this from the request
-	reset := ds.LatestReset()
-	agents := ds.GetAgents(reset)
+	// reset := ds.LatestReset()
+	agents := ds.GetAgents(ds.Reset(resets[0]))
 
-	t.ExecuteTemplate(w, "permissions.html", map[string]interface{}{
+	if err := t.ExecuteTemplate(w, "permissions.html", map[string]interface{}{
 		"Agents": agents,
-	})
+	}); err != nil {
+		slog.Error("template error", "error", err)
+	}
 }
 
 func HeaderHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("HeaderHandler")
-	// Header usually contains status info like Reset date, etc.
-	// We might want to pass 'a' or some data to it.
-	// For now, let's pass 'a' so it can access Reset.
-	t.ExecuteTemplate(w, "header.html", nil)
+	if err := t.ExecuteTemplate(w, "header.html", map[string]interface{}{
+		"Reset": ds.LatestReset(),
+	}); err != nil {
+		slog.Error("template error", "error", err)
+	}
 }
 
 func ExportHandler(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +206,7 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		// Filter inactive if requested
-		if hideInactive && details.Credits != 175000 {
+		if hideInactive && details.Credits == 175000 {
 			continue
 		}
 
@@ -206,7 +214,7 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		d = append(d, data{
 			Name:      agent,
 			Credits:   details.Credits,
-			IsActive:  details.Credits == 175000,
+			IsActive:  details.Credits != 175000,
 			IsChecked: ok,
 		})
 	}
@@ -222,7 +230,9 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		return d[i].Name < d[j].Name // Ascending name (default)
 	})
 
-	t.ExecuteTemplate(w, "permissions-grid.html", d)
+	if err := t.ExecuteTemplate(w, "permissions-grid.html", d); err != nil {
+		slog.Error("template error", "error", err)
+	}
 }
 
 func LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
@@ -240,7 +250,7 @@ func LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 	if leaderboardType == "charts" {
 		data = chartLB
 	}
-	
+
 	slog.Debug("have data", "data", data, "lbt", leaderboardType, "agent", myAgent)
 
 	err := t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
@@ -256,11 +266,15 @@ func LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
 func StatsHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("StatsHandler")
 	stats := ds.GetStats(ds.LatestReset())
-	t.ExecuteTemplate(w, "stats.html", stats)
+	if err := t.ExecuteTemplate(w, "stats.html", stats); err != nil {
+		slog.Error("template error", "error", err)
+	}
 }
 
 func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("JumpgatesHandler")
 	gates := ds.GetJumpgates(ds.LatestReset())
-	t.ExecuteTemplate(w, "jumpgates.html", gates)
+	if err := t.ExecuteTemplate(w, "jumpgates.html", gates); err != nil {
+		slog.Error("template error", "error", err)
+	}
 }

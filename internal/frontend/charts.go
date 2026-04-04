@@ -3,6 +3,7 @@ package frontend
 import (
 	"html/template"
 	"io"
+	"sort"
 	"time"
 
 	"github.com/go-echarts/go-echarts/v2/charts"
@@ -10,57 +11,19 @@ import (
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
-func Last24CreditChart(agents []string) *charts.Line {
+const targetDataPoints int = 150 // this will give 2 points per hour at 7 days
+
+// CreditChart will generate the chart based on duration
+// duration should be positive
+func CreditChart(agents []string, dur time.Duration, title string) *charts.Line {
 	line := charts.NewLine()
-	tfha := int(time.Now().Add(-24 * 60 * time.Minute).UnixMilli())
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme: "dark",
 			Width: "100%",
 		}),
 		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last 24 hours",
-			Subtitle: "Data point every 15 minutes",
-		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Min:      0,
-			Name:     "Credits",
-			Position: "right",
-		}),
-
-		charts.WithXAxisOpts(opts.XAxis{
-			Type: "time",
-			Min:  tfha,
-		}),
-		charts.WithTooltipOpts(opts.Tooltip{
-			Show:    opts.Bool(true),
-			Trigger: "axis",
-		}),
-	)
-	for _, p := range agents {
-		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, 24*time.Hour)
-		items := make([]opts.LineData, 0)
-		for i, r := range hist {
-			if i%10 == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Value}})
-			}
-		}
-		line.AddSeries(p, items)
-	}
-	return line
-}
-
-func Last4CreditChart(agents []string) *charts.Line {
-	line := charts.NewLine()
-	tfha := int(time.Now().Add(-4 * 60 * time.Minute).UnixMilli())
-	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{
-			Theme: "dark",
-			Width: "100%",
-		}),
-		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last 4 hours",
-			Subtitle: "20 Data Points per hour",
+			Title: title,
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min:      0,
@@ -68,113 +31,44 @@ func Last4CreditChart(agents []string) *charts.Line {
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
-			Min:  tfha,
+			Min:  time.Now().Add(-1 * dur).UnixMilli(),
+			Max:  time.Now().UnixMilli(),
 		}),
 		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
 			Trigger: "axis",
 		}),
 	)
-	for _, p := range agents {
-		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, 4*time.Hour)
-		items := make([]opts.LineData, 0)
-		for i, r := range hist {
-			if i%2 == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Value}})
-			}
-		}
-		line.AddSeries(p, items)
-	}
-
-	return line
-}
-
-func Last1CreditChart(agents []string) *charts.Line {
-	line := charts.NewLine()
-	tfha := int(time.Now().Add(-1 * 60 * time.Minute).UnixMilli())
-	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{
-			Theme: "dark",
-			Width: "100%",
-		}),
-		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last hour",
-			Subtitle: "All Data points",
-		}),
-		charts.WithYAxisOpts(opts.YAxis{
-			Min:      0,
-			Position: "right",
-		}),
-		charts.WithXAxisOpts(opts.XAxis{
-			Type: "time",
-			Min:  tfha,
-		}),
-		charts.WithTooltipOpts(opts.Tooltip{
-			Show:    opts.Bool(true),
-			Trigger: "axis",
-		}),
-	)
-	for _, p := range agents {
-		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, 1*time.Hour)
-		items := make([]opts.LineData, 0)
-		for _, r := range hist {
-			items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Value}})
-		}
-		line.AddSeries(p, items)
-	}
-
-	return line
-}
-
-func Last7dCreditChart(agents []string) *charts.Line {
-	line := charts.NewLine()
-	weekAgoMs := int(time.Now().Add(-7 * 24 * time.Hour).UnixMilli())
-
-	line.SetGlobalOptions(
-		charts.WithInitializationOpts(opts.Initialization{
-			Theme: "dark",
-			Width: "100%",
-		}),
-		charts.WithTitleOpts(opts.Title{
-			Title:    "Credits - last 7 days",
-			Subtitle: "Adaptive down-sampling",
-		}),
-		charts.WithYAxisOpts(opts.YAxis{Min: 0, Position: "right"}),
-		charts.WithXAxisOpts(opts.XAxis{Type: "time", Min: weekAgoMs}),
-		charts.WithTooltipOpts(opts.Tooltip{Show: opts.Bool(true), Trigger: "axis"}),
-	)
-
-	// Adaptive stride to keep point count reasonable
-	totalPerHour := 12
-	if totalPerHour == 0 {
-		totalPerHour = 12 // assume 5-min cadence
-	}
-	estimatedTotal := 7 * 24 * totalPerHour
-	targetPoints := 200
+	collectionTime := 5
+	dpPerHour := 60 / collectionTime
+	estimatedTotal := int(dur.Hours()) * dpPerHour
 	stride := 1
-	if estimatedTotal > targetPoints {
-		stride = estimatedTotal / targetPoints
+	if estimatedTotal > targetDataPoints {
+		stride = estimatedTotal / targetDataPoints
 		if stride < 1 {
 			stride = 1
 		}
 	}
 
 	for _, p := range agents {
-		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, 7*24*time.Hour)
-		items := make([]opts.LineData, 0, len(hist)/stride+1)
+		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, dur)
+		items := make([]opts.LineData, targetDataPoints*2)
+		sort.Slice(hist, func(i, j int) bool {
+			return hist[i].Timestamp < hist[j].Timestamp
+		})
 		for i, r := range hist {
 			if i%stride == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp, r.Value}})
+				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
 			}
 		}
 		line.AddSeries(p, items)
 	}
+
 	return line
 }
 
 func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration time.Duration) *charts.Line {
 	line := charts.NewLine()
-	tfha := int(time.Now().Add(-duration).UnixMilli())
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme: "dark",
@@ -190,7 +84,8 @@ func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
-			Min:  tfha,
+			Min:  time.Now().Add(-1 * duration).UnixMilli(),
+			Max:  time.Now().UnixMilli(),
 		}),
 		charts.WithTooltipOpts(opts.Tooltip{
 			Show:    opts.Bool(true),
@@ -201,8 +96,8 @@ func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration
 		fabItems := make([]opts.LineData, 0)
 		advItems := make([]opts.LineData, 0)
 		for _, r := range recs {
-			fabItems = append(fabItems, opts.LineData{Value: []interface{}{r.Timestamp, r.Fabmat}})
-			advItems = append(advItems, opts.LineData{Value: []interface{}{r.Timestamp, r.Advcct}})
+			fabItems = append(fabItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Fabmat}})
+			advItems = append(advItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Advcct}})
 		}
 		line.AddSeries(jg+" (Fabmat)", fabItems)
 		line.AddSeries(jg+" (Advcct)", advItems)

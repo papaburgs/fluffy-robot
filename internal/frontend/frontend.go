@@ -37,6 +37,23 @@ func StartServer() {
 		"add": func(a, b int) int {
 			return a + b
 		},
+		"unixTime": func(ts int64) string {
+			return time.Unix(ts, 0).Format("2006-01-02 15:04")
+		},
+		"constructionStatus": func(s uint8) string {
+			switch s {
+			case 0:
+				return "NoActivity"
+			case 1:
+				return "Active"
+			case 2:
+				return "Const"
+			case 3:
+				return "Complete"
+			default:
+				return "Unknown"
+			}
+		},
 	}
 
 	templateDir := "internal/frontend"
@@ -89,9 +106,10 @@ func StartServer() {
 	http.HandleFunc("/stats", StatsHandler)
 	http.HandleFunc("/jumpgates", JumpgatesHandler)
 
+	http.HandleFunc("/export", ExportHandler)
+
 	slog.Info("Starting server on http://localhost on " + portNumber)
 	slog.Warn("Server Done", "Error", http.ListenAndServe(portNumber, nil))
-
 }
 
 // updateResetLoop continuously updates the Reset field of the App struct in the background.

@@ -74,7 +74,7 @@ func loadConstructions(thisReset Reset) error {
 		return nil
 	}
 
-	m, err := readData("construction-.", thisReset)
+	m, err := readData("construction-", thisReset)
 	if err != nil {
 		l.Error("Failed to read data file", "error", err)
 		return err
@@ -89,8 +89,9 @@ func loadConstructions(thisReset Reset) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		constructionsLists[thisReset] = v
+		constructionsLists[thisReset] = append(constructionsLists[thisReset], v...)
 	}
+	l.Debug("Constructions built", "count", len(constructionsLists))
 	return nil
 }
 
@@ -173,7 +174,7 @@ func GetJumpgatesNotStarted(thisReset Reset) map[string]JGInfo {
 // want to move these to types later, but I don't like these types,
 
 type ConstructionRecord struct {
-	Timestamp time.Time
+	Timestamp int64
 	Fabmat    int
 	Advcct    int
 }
@@ -202,7 +203,7 @@ func GetConstructionRecords(thisReset Reset, agents []string, dur time.Duration)
 		for _, rec := range constructionsLists[thisReset] {
 			if rec.Jumpgate == thisJumpgate.Jumpgate {
 				res[a] = append(res[a], ConstructionRecord{
-					Timestamp: time.Unix(rec.Timestamp, 0).UTC(),
+					Timestamp: rec.Timestamp,
 					Fabmat:    rec.Fabmat,
 					Advcct:    rec.Advcct,
 				})
@@ -233,9 +234,13 @@ func GetLatestConstructionRecords(thisReset Reset, agents []string) []Constructi
 				jgLatest = rec
 			}
 		}
+		plog.Debug("adding record for agent", "agent", a, "record", jgLatest)
+		if jgLatest.Timestamp == 0 {
+			jgLatest.Timestamp = time.Now().Unix()
+		}
 		res = append(res, ConstructionOverview{
 			Agent:     a,
-			Jumpgate:  jgLatest.Jumpgate,
+			Jumpgate:  thisJumpgate.Jumpgate,
 			Fabmat:    jgLatest.Fabmat,
 			Advcct:    jgLatest.Advcct,
 			Timestamp: time.Unix(jgLatest.Timestamp, 0).UTC(),
