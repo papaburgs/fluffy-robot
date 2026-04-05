@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"maps"
 	"time"
 
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
@@ -18,9 +17,6 @@ import (
 func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.PublicAgent) error {
 	l := c.plog.With("function", "updateJumpgatesFromAgents")
 	l.Info("start")
-	if err := ds.LoadJumpgates(); err != nil {
-		l.Error("did not load jumpgate data", "error", err)
-	}
 
 	l.Debug("starting to merge agents with existing jumpgates")
 	c.currentTimestamp = time.Now().Round(time.Minute).Unix()
@@ -28,8 +24,7 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 	c.ingestStart = time.Now()
 
 	// get a copy of the jumpgates
-	var jgs = make(map[string]ds.JGInfo)
-	maps.Copy(jgs, ds.Jumpgates())
+	jgs := ds.GetJumpgates(c.currentReset)
 
 	// loop over the agents we got and update where needed
 	l.Debug("starting loop")
@@ -38,7 +33,7 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 		thisSystem := ds.SystemFromWaypoint(a.Headquarters)
 		thisJG, ok := jgs[thisSystem]
 		if !ok {
-			l.Debug("Not found")
+			l.Debug("Not found in current jumpgates")
 			// if we don't have this in the db, we need to add it to the activeSystems map to check it later.
 			jumpgateSymbol, err := c.findJumpgateSymbol(ctx, thisSystem)
 			if err != nil {
@@ -60,6 +55,7 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 	}
 
 	l.Debug("done scan")
+
 	// now write it back to ds
 	jgList := []ds.JGInfo{}
 	for _, j := range jgs {
@@ -81,24 +77,18 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 func (c *Collector) updateJumpgates(ctx context.Context) error {
 	l := c.plog.With("function", "updateJumpgates")
 	l.Info("start")
-	if err := ds.LoadJumpgates(); err != nil {
-		l.Error("did not load jumpgate data", "error", err)
-	}
 
 	c.currentTimestamp = time.Now().Round(time.Minute).Unix()
 	c.apiCalls = 0
 	c.ingestStart = time.Now()
 
-	jgs := ds.Jumpgates()
+	jgs := ds.GetJumpgatesUnderConst(c.currentReset)
 
 	var constructions []ds.JGConstruction
 	var completions []string
 
 	l.Debug("looking through jumpates being built")
 	for system, jg := range jgs {
-		if jg.Status != ds.Const {
-			continue
-		}
 		l.Debug("checking construction status", "jumpgate", jg.Jumpgate)
 		status, err := c.fetchConstructionStatus(ctx, system, jg.Jumpgate)
 		if err != nil {
@@ -154,49 +144,42 @@ func (c *Collector) updateJumpgates(ctx context.Context) error {
 func (c *Collector) updateInactiveJumpgates(ctx context.Context) error {
 	l := c.plog.With("function", "updateJumpgates")
 	l.Info("start")
-	if err := ds.LoadJumpgates(); err != nil {
-		l.Error("did not load jumpgate data", "error", err)
-	}
 
 	c.currentTimestamp = time.Now().Round(time.Minute).Unix()
 	c.apiCalls = 0
 	c.ingestStart = time.Now()
 
-	// get a copy of the jumpgates
-	var jgs = make(map[string]ds.JGInfo)
-	maps.Copy(jgs, ds.Jumpgates())
+	jgs := ds.GetJumpgatesNotStarted(c.currentReset)
 
 	var constructions []ds.JGConstruction
 	var updateConst []string
 
 	l.Debug("looking through jumpates not being built")
 	for system, jg := range jgs {
-		if jg.Status == ds.Active {
-			l.Debug("checking construction status", "jumpgate", jg.Jumpgate)
-			status, err := c.fetchConstructionStatus(ctx, system, jg.Jumpgate)
-			if err != nil {
-				l.Error("failed to fetch construction status", "jumpgate", jg.Jumpgate, "error", err)
-				continue
-			}
+		l.Debug("checking construction status", "jumpgate", jg.Jumpgate)
+		status, err := c.fetchConstructionStatus(ctx, system, jg.Jumpgate)
+		if err != nil {
+			l.Error("failed to fetch construction status", "jumpgate", jg.Jumpgate, "error", err)
+			continue
+		}
 
-			// Update construction table
-			var fabmat, advcct int
-			for _, m := range status.Materials {
-				if m.TradeSymbol == "FAB_MATS" {
-					fabmat = m.Fulfilled
-				} else if m.TradeSymbol == "ADVANCED_CIRCUITRY" {
-					advcct = m.Fulfilled
-				}
+		// Update construction table
+		var fabmat, advcct int
+		for _, m := range status.Materials {
+			if m.TradeSymbol == "FAB_MATS" {
+				fabmat = m.Fulfilled
+			} else if m.TradeSymbol == "ADVANCED_CIRCUITRY" {
+				advcct = m.Fulfilled
 			}
-			if fabmat > 0 || advcct > 0 {
-				constructions = append(constructions, ds.JGConstruction{
-					Timestamp: c.currentTimestamp,
-					Jumpgate:  jg.Jumpgate,
-					Fabmat:    fabmat,
-					Advcct:    advcct,
-				})
-				updateConst = append(updateConst, system)
-			}
+		}
+		if fabmat > 0 || advcct > 0 {
+			constructions = append(constructions, ds.JGConstruction{
+				Timestamp: c.currentTimestamp,
+				Jumpgate:  jg.Jumpgate,
+				Fabmat:    fabmat,
+				Advcct:    advcct,
+			})
+			updateConst = append(updateConst, system)
 		}
 	}
 	l.Debug("done scan")

@@ -3,6 +3,8 @@ package datastore
 import (
 	"encoding/gob"
 	"fmt"
+	"os"
+	"sort"
 	"time"
 )
 
@@ -52,12 +54,18 @@ func StoreLeaderboards(r ResponseStatus) error {
 	return nil
 }
 
-func LoadStats(r string) error {
-	l := plog.With("function", "LoadAgents")
+func loadStats(thisReset Reset) error {
+	l := plog.With("function", "LoadStats")
+
 	zeroTimer.Reset(cacheLifetime)
+	l.Debug("try to load stats", "reset", thisReset)
+	if stats[thisReset].Reset != "" {
+		l.Info("Cache built, this is noop")
+		return nil
+	}
 	// use readdata to get back a map of filename to byte buffers
 	// NB use the . on the end so we don't get agentStatus files
-	m, err := readData("stats.")
+	m, err := readData("stats.", "")
 	if err != nil {
 		l.Error("Failed to read stats file", "error", err)
 		return err
@@ -79,17 +87,27 @@ func LoadStats(r string) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		StoredStats = v
+		stats[thisReset] = v
 	}
 	return nil
 }
 
-func LoadLeaderboard(r string) error {
+func GetStats(thisReset Reset) Stats {
+	l := plog.With("function", "GetStats")
+	l.Debug("try to load stats", "reset", thisReset)
+	if err := loadStats(thisReset); err != nil {
+		l.Error("error loading stats", "thisReset", thisReset, "error", err)
+		return Stats{}
+	}
+	return stats[thisReset]
+}
+
+func loadLeaderboard(thisReset Reset) error {
 	l := plog.With("function", "LoadLeaderboard")
 	zeroTimer.Reset(cacheLifetime)
 	// use readdata to get back a map of filename to byte buffers
 	// NB use the . on the end so we don't get agentStatus files
-	m, err := readData("leaderboard.")
+	m, err := readData("leaderboard.", thisReset)
 	if err != nil {
 		l.Error("Failed to read file", "error", err)
 		return err
@@ -111,16 +129,69 @@ func LoadLeaderboard(r string) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		LatestCreditLeaders = v.CreditsList
-		LatestChartLeaders = v.ChartsList
+		creditLeaders[thisReset] = v.CreditsList
+		chartLeaders[thisReset] = v.ChartsList
 	}
 	return nil
 }
 
-func LatestReset() string {
-	return StoredStats.Reset
+// GetLeaderboard returns the credit and charts leaderboard for provided reset
+func GetLeaderboard(thisReset Reset) ([]LeaderboardEntry, []LeaderboardEntry) {
+	l := plog.With("function", "GetLeaderboard")
+	if err := loadLeaderboard(thisReset); err != nil {
+		l.Error("error loading leaderboard", "thisReset", thisReset, "error", err)
+		return nil, nil
+	}
+	return creditLeaders[thisReset], chartLeaders[thisReset]
+}
+
+// AllResets reads each directory in the path directory and makes a list
+// of all the resets sorted in alphabetical order,
+// which should be the same as chronological order
+// since the resets are in YYYY-MM-DD format.
+// This is used to populate the dropdown for selecting resets on the frontend.
+func AllResets() []string {
+	l := plog.With("function", "AllResets")
+	resets := []string{}
+	files, err := os.ReadDir(path)
+	if err != nil {
+		l.Error("Failed to read resets directory", "error", err)
+		return resets
+	}
+
+	for _, f := range files {
+		if f.IsDir() {
+			resets = append(resets, f.Name())
+		}
+	}
+	// before returning sort the resets in reverse order so the most recent reset is first
+	sort.Slice(resets, func(i, j int) bool {
+		return resets[i] > resets[j]
+	})
+	return resets
+}
+
+func LatestReset() Reset {
+	for {
+		if currentReset == "" {
+			plog.Debug("reset is not updated yet")
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
+	}
+	return currentReset
 }
 
 func NextReset() time.Time {
-	return StoredStats.NextReset
+	for {
+		if currentReset == "" {
+			plog.Debug("reset is not updated yet")
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
+	}
+	loadStats(currentReset)
+	return stats[currentReset].NextReset
 }

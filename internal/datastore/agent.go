@@ -6,21 +6,6 @@ import (
 	"time"
 )
 
-// Public agent is the type that is returned from the api
-type PublicAgent struct {
-	Credits         int64  `json:"credits"`
-	Headquarters    string `json:"headquarters"`
-	ShipCount       int    `json:"shipCount"`
-	StartingFaction string `json:"startingFaction"`
-	Symbol          string `json:"symbol"`
-}
-
-type TimedAgentRecord struct {
-	Timestamp time.Time
-	ShipCount int
-	Credits   int
-}
-
 func StoreAgents(apiAgents []PublicAgent, now int64) {
 	l := plog.With("function", "LoadAgents")
 	l.Debug("Writing Agents")
@@ -51,12 +36,16 @@ func StoreAgents(apiAgents []PublicAgent, now int64) {
 }
 
 // LoadAgents makes the Agents map
-func LoadAgents(r string) error {
+func loadAgents(thisReset Reset) error {
 	l := plog.With("function", "LoadAgents")
 	zeroTimer.Reset(cacheLifetime)
+	if len(agentsList[thisReset]) > 0 {
+		l.Info("Cache built, this is noop")
+		return nil
+	}
 	// use readdata to get back a map of filename to byte buffers
 	// NB use the . on the end so we don't get agentStatus files
-	m, err := readData("agents.")
+	m, err := readData("agents.", thisReset)
 	if err != nil {
 		l.Error("Failed to load agents", "error", err)
 		return err
@@ -77,26 +66,32 @@ func LoadAgents(r string) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		for _, a := range v {
-			Agents[a.Symbol] = a
-		}
+		agentsList[thisReset] = v
 	}
-	l.Debug("loaded agents", "count", len(Agents))
+	l.Debug("loaded agents", "count", len(agentsList[thisReset]))
 	return nil
 }
 
-// LoadAgentHistory makes the agentname to credit and ship count maps
-func LoadAgentHistory(r string) error {
-	l := plog.With("function", "LoadAgentHistory")
+// loadAgentHistory gets all the data from a reset and makes a list
+// then user called functions use that list to make specific maps
+func loadAgentHistory(thisReset Reset) error {
+	l := plog.With("function", "makeResetListofAgents")
+	start := time.Now()
+	zeroTimer.Reset(cacheLifetime)
+	if len(agentHistory[thisReset]) != 0 {
+		l.Info("Cache built, this is noop")
+		return nil
+	}
 	// use readdata to get back a map of filename to byte buffers
-	// NB use the dash to make it more unique
-	m, err := readData("agentsStatus-")
+	// NB use the dash to make it unique
+	m, err := readData("agentsStatus-", thisReset)
 	if err != nil {
 		l.Error("Failed to load agents", "error", err)
 		return err
 	}
 
-	for _, b := range m {
+	agentHistory[thisReset] = []AgentStatus{}
+	for f, b := range m {
 		// make a new decoder on the buffer, which is a Reader
 		gobDec := gob.NewDecoder(b)
 
@@ -106,26 +101,60 @@ func LoadAgentHistory(r string) error {
 			l.Error("error decoding gob", "error", err)
 			return err
 		}
-		for _, a := range v {
-			nextDataPointCredit := DataPoint{Timestamp: a.Timestamp, Value: a.Credits}
-			nextDataPointShips := DataPoint{Timestamp: a.Timestamp, Value: a.Ships}
-			var newCreditList []DataPoint
-			var newShipList []DataPoint
-			if cur, ok := AgentCreditHistory[a.Symbol]; ok {
-				newCreditList = append(cur, nextDataPointCredit)
-			} else {
-				newCreditList = []DataPoint{nextDataPointCredit}
-			}
-			if cur, ok := AgentShipHistory[a.Symbol]; ok {
-				newShipList = append(cur, nextDataPointShips)
-			} else {
-				newShipList = []DataPoint{nextDataPointShips}
-			}
+		l.Debug("processed file", "file", f, "recordds", len(v))
+		agentHistory[thisReset] = append(agentHistory[thisReset], v...)
+	}
+	l.Debug("Generated List of all agents on reset", "reset", thisReset, "duration", time.Now().Sub(start))
+	return nil
+}
 
-			AgentCreditHistory[a.Symbol] = newCreditList
-			AgentShipHistory[a.Symbol] = newShipList
-
+func GetAgentRecordsCredits(thisReset Reset, agent string, dur time.Duration) []DataPoint {
+	l := plog.With("function", "GetAgentRecordsCredits")
+	start := time.Now()
+	if err := loadAgentHistory(thisReset); err != nil {
+		l.Error("error making list of agents for reset", "reset", thisReset, "error", err)
+		return nil
+	}
+	l.Debug("Have data", "agent", agent, "reset", thisReset, "duration", dur, "histories", len(agentHistory[thisReset]))
+	var res []DataPoint
+	cutoff := time.Now().Add(-1 * dur).Unix()
+	for _, r := range agentHistory[thisReset] {
+		if r.Symbol == agent && cutoff < r.Timestamp {
+			res = append(res, DataPoint{Timestamp: r.Timestamp, Value: r.Credits})
 		}
 	}
-	return nil
+	l.Debug("Got agent records for credits", "reset", thisReset, "agent", agent, "duration", time.Now().Sub(start), "records", len(res))
+	return res
+}
+
+func GetAgentRecordsShips(thisReset Reset, agent string, dur time.Duration) []DataPoint {
+	l := plog.With("function", "GetAgentRecordsCredits")
+	start := time.Now()
+	if err := loadAgentHistory(thisReset); err != nil {
+		l.Error("error making list of agents for reset", "reset", thisReset, "error", err)
+		return nil
+	}
+	var res []DataPoint
+	cutoff := time.Now().Add(-dur).Unix()
+	for _, r := range agentHistory[thisReset] {
+		if r.Symbol == agent && cutoff > r.Timestamp {
+			res = append(res, DataPoint{Timestamp: r.Timestamp, Value: r.Ships})
+		}
+	}
+	l.Debug("Got agent records for ships", "reset", thisReset, "agent", agent, "duration", time.Now().Sub(start))
+	return res
+}
+
+// GetAgents returns a map of agent name to agent data for provided reset
+func GetAgents(thisReset Reset) map[string]Agent {
+	l := plog.With("function", "GetAgents")
+	if err := loadAgents(thisReset); err != nil {
+		l.Error("error loading agents", "reset", thisReset, "error", err)
+		return nil
+	}
+	res := make(map[string]Agent)
+	for _, a := range agentsList[thisReset] {
+		res[a.Symbol] = a
+	}
+	return res
 }

@@ -22,7 +22,7 @@ import (
 )
 
 var path = "./"
-var reset = ""
+var currentReset Reset = ""
 var resetPath = ""
 var writeJSON = false
 var zeroTimer *time.Timer
@@ -32,6 +32,9 @@ var plog *slog.Logger
 func Init() {
 	plog = slog.With("package", "datastore")
 	l := plog.With("function", "init")
+	l.Debug("starting watch timer")
+	zeroTimer = time.NewTimer(time.Millisecond)
+	go watchTimer()
 	env, ok := os.LookupEnv("FLUFFY_STORAGE_PATH")
 	if ok {
 		path = env
@@ -56,43 +59,24 @@ func Init() {
 		for _, a := range []string{"yes", "y", "true"} {
 			if strings.ToLower(env) == a {
 				writeJSON = true
-				l.Debug("writing json")
 			}
 		}
 	}
-	zeroTimer = time.NewTimer(time.Millisecond)
-	go watchTimer()
+	l.Debug("Init complete", "path", path, "cacheLifetime", cacheLifetime, "outputJson", writeJSON)
 }
 
-func UpdateReset(r string) {
+// UpdateReset is called on the status update function
+// this needs to run right away so we have resets
+func UpdateReset(r Reset) {
 	l := plog.With("function", "updateReset")
-	reset = r
-	resetPath = filepath.Join(path, reset)
+	currentReset = r
+	resetPath = filepath.Join(path, string(currentReset))
 	err := os.MkdirAll(resetPath, 0755)
 	if err != nil {
 		l.Error("Failed to create directory", "path", path)
 		os.Exit(1)
 	}
 	l.Debug("set reset", "current", resetPath)
-}
-
-type JumpGateAgentListStruct struct {
-	AgentsToCheck  []PublicAgent `json:"agents_to_check"`
-	AgentsToIgnore []PublicAgent `json:"agents_to_ignore"`
-}
-
-type TimedConstructionRecord struct {
-	Timestamp time.Time
-	Fabmat    int
-	Advcct    int
-}
-
-type ConstructionOverview struct {
-	Agent     string
-	Jumpgate  string
-	Fabmat    int
-	Advcct    int
-	Timestamp time.Time
 }
 
 func writeData(basename string, timestamp int64, v any) error {
@@ -145,11 +129,16 @@ func writeData(basename string, timestamp int64, v any) error {
 	return nil
 }
 
-// readData loopsj
-func readData(prefix string) (map[string]*bytes.Buffer, error) {
+// readData loops over files of a type and returns a map of filename to byte buffer, which can then be decoded by the caller
+func readData(prefix string, thisReset Reset) (map[string]*bytes.Buffer, error) {
 	l := plog.With("function", "readData")
 	res := make(map[string]*bytes.Buffer)
-	files, err := os.ReadDir(resetPath)
+
+	thisPath := resetPath
+	if thisReset != "" {
+		thisPath = filepath.Join(path, string(thisReset))
+	}
+	files, err := os.ReadDir(thisPath)
 	if err != nil {
 		return res, err
 	}
@@ -195,17 +184,21 @@ func watchTimer() {
 // can be called on startup and also when idle for too long
 func zero() {
 	slog.Debug("Zeroing")
-	Agents = make(map[string]Agent)
-	AgentCreditHistory = make(map[string][]DataPoint)
-	AgentShipHistory = make(map[string][]DataPoint)
-	StoredStats = Stats{}
-	LatestCreditLeaders = []LeaderboardEntry{}
-	LatestChartLeaders = []LeaderboardEntry{}
-	jumpgatesBySystem = make(map[string]JGInfo)
-	jumpgatesUnderConst = make(map[string]JGInfo)
+	agentsList = make(map[Reset][]Agent)
+	agentHistory = make(map[Reset][]AgentStatus)
+	stats = make(map[Reset]Stats)
+	creditLeaders = make(map[Reset][]LeaderboardEntry)
+	chartLeaders = make(map[Reset][]LeaderboardEntry)
+	jumpgateLists = make(map[Reset][]JGInfo)
+	constructionsLists = make(map[Reset][]JGConstruction)
 }
 
 func SystemFromWaypoint(w string) string {
 	split := strings.Split(w, "-")
 	return fmt.Sprintf("%s-%s", split[0], split[1])
+}
+
+// DataPath returns the path where the data is stored (for the export endpoint
+func DataPath() string {
+	return path
 }

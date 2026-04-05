@@ -5,9 +5,11 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/collector"
 	"github.com/papaburgs/fluffy-robot/internal/datastore"
+	"github.com/papaburgs/fluffy-robot/internal/frontend"
 	"github.com/papaburgs/fluffy-robot/internal/gate"
 	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
@@ -15,6 +17,7 @@ import (
 func main() {
 	logging.InitLogger()
 	l := slog.With("function", "main")
+	l.Debug("Main start")
 
 	gateBucketSize, err := strconv.Atoi(os.Getenv("FLUFFY_GATE_BUCKET_SIZE"))
 	if err != nil {
@@ -25,10 +28,11 @@ func main() {
 
 	c := collector.NewCollector(gate.New(2, gateBucketSize), baseURL)
 
-	// tried this in an 'init' but it did not work as required
 	datastore.Init()
+	time.Sleep(time.Second)
+	go c.Run(context.Background())
 
-	c.Run(context.Background())
-
-	// at this point we would add the frontend, but need some more database calls before I can start that process
+	l.Debug("Collector started, sleep for a couple seconds")
+	time.Sleep(2 * time.Second)
+	frontend.StartServer()
 }

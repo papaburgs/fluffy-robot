@@ -12,6 +12,10 @@ const (
 	Complete
 )
 
+// To make the keys of maps more descriptive, make a 'reset' string type
+
+type Reset string
+
 type ResponseStatus struct {
 	Leaderboards struct {
 		MostCredits []struct {
@@ -53,12 +57,32 @@ type LeaderboardRecord struct {
 }
 
 // ***********  Agent types *************** \\
+// Public agent is the type that is returned from the api
+type PublicAgent struct {
+	Credits         int64  `json:"credits"`
+	Headquarters    string `json:"headquarters"`
+	ShipCount       int    `json:"shipCount"`
+	StartingFaction string `json:"startingFaction"`
+	Symbol          string `json:"symbol"`
+}
+
+type TimedAgentRecord struct {
+	Timestamp time.Time
+	ShipCount int
+	Credits   int
+}
+
 type Agent struct {
 	Symbol       string
 	Credits      int64
 	Faction      string
 	Headquarters string
 	System       string
+}
+
+type resetAgentKey struct {
+	Reset string
+	Agent string
 }
 
 type AgentStatus struct {
@@ -102,18 +126,45 @@ type JGConstruction struct {
 	Advcct    int
 }
 
+type JumpGateAgentListStruct struct {
+	AgentsToCheck  []PublicAgent `json:"agents_to_check"`
+	AgentsToIgnore []PublicAgent `json:"agents_to_ignore"`
+}
+
+// type TimedConstructionRecord struct {
+// 	Timestamp time.Time
+// 	Fabmat    int
+// 	Advcct    int
+// }
+
+type ConstructionOverview struct {
+	Agent     string
+	Jumpgate  string
+	Fabmat    int
+	Advcct    int
+	Timestamp time.Time
+}
+
+// these are variables that should be zeroed on startup or after inactivity
+// originally had make these public, but instead, making these just big maps
+// of lists of _the thing_ referenced by reset
+// the getter funcs will filter and manipulate the lists when needed
 var (
 	// ************  Agent vars  ************* \\
-	Agents             map[string]Agent
-	AgentCreditHistory map[string][]DataPoint
-	AgentShipHistory   map[string][]DataPoint
+	// maps the reset to the list of agents
+	agentsList   map[Reset][]Agent
+	agentHistory map[Reset][]AgentStatus
 
 	// *********** Stats vars *************** \\
-	StoredStats         Stats
-	LatestCreditLeaders []LeaderboardEntry
-	LatestChartLeaders  []LeaderboardEntry
+	stats         map[Reset]Stats
+	creditLeaders map[Reset][]LeaderboardEntry
+	chartLeaders  map[Reset][]LeaderboardEntry
 
 	// ************ Jumpgates *************** \\
-	jumpgatesBySystem   map[string]JGInfo
-	jumpgatesUnderConst map[string]JGInfo
+	// map of reset to list of jumpgate statuses
+	jumpgateLists map[Reset][]JGInfo
+
+	// ************ Constructions *************** \\
+	// map of reset to list of construction statuses
+	constructionsLists map[Reset][]JGConstruction
 )

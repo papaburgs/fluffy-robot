@@ -10,14 +10,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/papaburgs/fluffy-robot/internal/datastore"
+	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 	"github.com/papaburgs/fluffy-robot/internal/gate"
 )
 
 type Collector struct {
 	baseURL          string
 	gate             *gate.Gate
-	reset            string
+	currentReset     ds.Reset
 	nextReset        time.Time
 	currentTimestamp int64
 	apiCalls         int
@@ -44,6 +44,8 @@ func (c *Collector) Run(ctx context.Context) {
 	l := c.plog.With("function", "Run")
 
 	var err error
+
+	// need to call updateStatus right away to update current reset
 	err = c.updateStatus(ctx)
 	if err != nil {
 		slog.Error("Error running updateStatus", "error", err)
@@ -52,21 +54,8 @@ func (c *Collector) Run(ctx context.Context) {
 	// if err != nil {
 	// 	slog.Error("Error running updateStatus", "error", err)
 	// }
-	// l.Info("agents should be updated, test variable builders")
-	// time.Sleep(time.Second)
-	// begin := time.Now()
-	// datastore.LoadAgents(c.reset)
-	// datastore.LoadAgentHistory(c.reset)
-
-	// l.Info("done loading content, _charts_ can now use them")
-	// fmt.Println("------")
-	// fmt.Println(datastore.Agents["BURG"])
-	// fmt.Println("------")
-	// fmt.Println(datastore.AgentShipHistory["BURG"])
-	// fmt.Println("------")
-	// l.Info("that took some time", "elapsed", time.Now().Sub(begin))
-
-	// l.Warn("sleeping before first jumpgate update")
+	//
+	// // l.Warn("sleeping before first jumpgate update")
 	// time.Sleep(1 * time.Minute)
 	// err = c.updateInactiveJumpgates(ctx)
 	// if err != nil {
@@ -176,7 +165,7 @@ func (c *Collector) loopAtReset(ctx context.Context) error {
 
 		// at this point we have a 200, now make sure everything else is ok
 
-		var status datastore.ResponseStatus
+		var status ds.ResponseStatus
 		if err := json.Unmarshal(body, &status); err != nil {
 			l.Error("error unmarshalling, that is weird", "body", string(body))
 			continue
