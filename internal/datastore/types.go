@@ -46,6 +46,19 @@ type ResponseStatus struct {
 	Version string `json:"version"`
 }
 
+type Faction struct {
+	Symbol       string `json:"symbol"`
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	Headquarters string `json:"headquarters"`
+	Traits       []struct {
+		Symbol      string `json:"symbol"`
+		Name        string `json:"name"`
+		Description string `json:"description"`
+	} `json:"traits"`
+	IsRecruiting bool `json:"isRecruiting"`
+}
+
 type LeaderboardEntry struct {
 	Symbol string
 	Value  int64
@@ -131,12 +144,6 @@ type JumpGateAgentListStruct struct {
 	AgentsToIgnore []PublicAgent `json:"agents_to_ignore"`
 }
 
-// type TimedConstructionRecord struct {
-// 	Timestamp time.Time
-// 	Fabmat    int
-// 	Advcct    int
-// }
-
 type ConstructionOverview struct {
 	Agent     string
 	Jumpgate  string
@@ -150,21 +157,16 @@ type ConstructionOverview struct {
 // of lists of _the thing_ referenced by reset
 // the getter funcs will filter and manipulate the lists when needed
 var (
-	// ************  Agent vars  ************* \\
-	// maps the reset to the list of agents
 	agentsList   map[Reset][]Agent
 	agentHistory map[Reset][]AgentStatus
 
-	// *********** Stats vars *************** \\
 	stats         map[Reset]Stats
 	creditLeaders map[Reset][]LeaderboardEntry
 	chartLeaders  map[Reset][]LeaderboardEntry
 
-	// ************ Jumpgates *************** \\
-	// map of reset to list of jumpgate statuses
 	jumpgateLists map[Reset][]JGInfo
 
-	// ************ Constructions *************** \\
-	// map of reset to list of construction statuses
 	constructionsLists map[Reset][]JGConstruction
+
+	factionLists map[Reset][]Faction
 )

@@ -76,6 +76,11 @@ type ResponseAgents struct {
 	Meta Meta                    `json:"meta"`
 }
 
+type ResponseFactions struct {
+	Data []datastore.Faction `json:"data"`
+	Meta Meta                `json:"meta"`
+}
+
 type Meta struct {
 	Limit int `json:"limit"`
 	Page  int `json:"page"`

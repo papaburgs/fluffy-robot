@@ -111,3 +111,38 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 	metrics.CollectorLastTimestamp.Set(time.Now().Unix())
 	return nil
 }
+
+func (c *Collector) updateFactionss(ctx context.Context) error {
+	l := slog.With("function", "updateFactions")
+	l.Debug("updating factions")
+
+	var allFactions = []datastore.Faction{}
+	page := 1
+	perPage := 20
+
+	for {
+		l.Debug("fetching factions page", "page", page)
+		url := fmt.Sprintf("%s/factions?limit=%d&page=%d", c.baseURL, perPage, page)
+		resp, err := c.doGET(ctx, url)
+		if err != nil {
+			return err
+		}
+
+		var data ResponseFactions
+		if err := json.Unmarshal(resp.Bytes, &data); err != nil {
+			return err
+		}
+
+		allFactions = append(allFactions, data.Data...)
+
+		if page*perPage >= data.Meta.Total {
+			break
+		}
+		page++
+	}
+
+	datastore.StoreFactions(allFactions)
+
+	l.Info("faction", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
+	return nil
+}
