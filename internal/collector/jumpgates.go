@@ -8,6 +8,7 @@ import (
 	"time"
 
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
+	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
 // updateJumpgatesFromAgents will loop over the agents we have and find any new jumpgates we haven't seen before,
@@ -130,6 +131,8 @@ func (c *Collector) updateJumpgates(ctx context.Context) error {
 	if len(constructions) > 0 {
 		ds.AddConstructions(constructions, c.currentTimestamp)
 	}
+	metrics.CollectorJumpgateUpdates.Add(1)
+	metrics.CollectorLastTimestamp.Set(time.Now().Unix())
 
 	l.Info("Update complete construction complete",
 		"apicalls", c.apiCalls,
@@ -191,6 +194,8 @@ func (c *Collector) updateInactiveJumpgates(ctx context.Context) error {
 	if len(constructions) > 0 {
 		ds.AddConstructions(constructions, c.currentTimestamp)
 	}
+	metrics.CollectorConstructionChecks.Add(1)
+	metrics.CollectorLastTimestamp.Set(time.Now().Unix())
 
 	l.Info("Update under construction complete",
 		"apicalls", c.apiCalls,

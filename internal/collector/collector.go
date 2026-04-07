@@ -12,6 +12,7 @@ import (
 
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 	"github.com/papaburgs/fluffy-robot/internal/gate"
+	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
 type Collector struct {
@@ -107,6 +108,7 @@ func (c *Collector) Run(ctx context.Context) {
 			c.agentTicker.Stop()
 			c.jumpgateTicker.Stop()
 			c.constTicker.Stop()
+			metrics.CollectorResetDetections.Add(1)
 			err := c.updateStatus(ctx)
 			if err != nil {
 				l.Error("Error running updateAgents", "error", err)

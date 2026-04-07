@@ -9,6 +9,7 @@ import (
 
 	"github.com/papaburgs/fluffy-robot/internal/datastore"
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
+	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
 func (c *Collector) updateStatus(ctx context.Context) error {
@@ -106,5 +107,7 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 	}
 
 	l.Info("agent ingestion completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
+	metrics.CollectorAgentUpdates.Add(1)
+	metrics.CollectorLastTimestamp.Set(time.Now().Unix())
 	return nil
 }

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
 type Gate struct {
@@ -69,6 +71,7 @@ func (g *Gate) loop() {
 					switch {
 					case g.t1Count < g.t1Limit:
 						g.t1Count++
+						metrics.GateT1Requests.Add(1)
 						c <- true
 						g.queue.Remove(node)
 						// l.Debug("sending in t1")
@@ -78,6 +81,7 @@ func (g *Gate) loop() {
 							g.t60Ticker.Reset(time.Minute)
 						}
 						g.t60Count++
+						metrics.GateT60Requests.Add(1)
 						c <- true
 						g.queue.Remove(node)
 						// l.Debug("sending in t60")
@@ -85,6 +89,7 @@ func (g *Gate) loop() {
 						// if we get here we are blocking the Latch until the second ticks over
 						// we will go through the loop and if we fall back here, we increase wait time
 						ratelimit++
+						metrics.GateBlocked.Add(1)
 						time.Sleep(time.Duration(ratelimit) * 100 * time.Millisecond)
 					}
 				} else {
@@ -107,6 +112,7 @@ func (g *Gate) Latch(ctx context.Context) {
 	c := make(chan bool)
 	g.queue.PushBack(c)
 	g.queueMutex.Unlock()
+	metrics.GateQueueLength.Set(int64(g.queue.Len()))
 	select {
 	case <-c:
 		return
@@ -115,11 +121,11 @@ func (g *Gate) Latch(ctx context.Context) {
 	}
 }
 
-
 // if we get a 429, we will lock the gate, meaning no one gets through until they reset
 func (g *Gate) Lock(ctx context.Context) {
 	g.queueMutex.Lock()
 	g.t1Count = 9999
 	g.t60Count = 99999
+	metrics.GateLockCount.Add(1)
 	g.queueMutex.Unlock()
 }

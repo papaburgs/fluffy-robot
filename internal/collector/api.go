@@ -8,12 +8,14 @@ import (
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/datastore"
+	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
 func (c *Collector) doGET(ctx context.Context, url string) (HTTPResponse, error) {
 	var retries429 int
 	var retriesOther int
 	c.apiCalls++
+	metrics.CollectorAPICalls.Add(1)
 	for {
 		req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 		if err != nil {
@@ -50,6 +52,7 @@ func (c *Collector) doGET(ctx context.Context, url string) (HTTPResponse, error)
 
 		if resp.StatusCode == 429 {
 			retries429++
+			metrics.CollectorAPI429Retries.Add(1)
 			if retries429 >= 5 {
 				return res, fmt.Errorf("received too many 429 errors")
 			}
@@ -60,13 +63,13 @@ func (c *Collector) doGET(ctx context.Context, url string) (HTTPResponse, error)
 
 		// Handle 4xx or 5xx codes
 		retriesOther++
+		metrics.CollectorAPIOtherRetries.Add(1)
 		if retriesOther >= 3 {
 			return res, fmt.Errorf("received non-200 status code: %d", resp.StatusCode)
 		}
 		time.Sleep(time.Second)
 	}
 }
-
 
 type ResponseAgents struct {
 	Data []datastore.PublicAgent `json:"data"`

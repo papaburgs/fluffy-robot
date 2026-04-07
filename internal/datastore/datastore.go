@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/klauspost/compress/zstd"
+	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
 var path = "./"
@@ -101,6 +102,7 @@ func writeData(basename string, timestamp int64, v any) error {
 		if err := enc.Encode(v); err != nil {
 			return err
 		}
+		metrics.DatastoreWrites.Add(1)
 	}
 	// Write compressed gob
 	l.Debug("Writing compressed gob")
@@ -126,6 +128,7 @@ func writeData(basename string, timestamp int64, v any) error {
 		return err
 	}
 	encoder.Close()
+	metrics.DatastoreWrites.Add(1)
 	return nil
 }
 
@@ -166,6 +169,7 @@ func readData(prefix string, thisReset Reset) (map[string]*bytes.Buffer, error) 
 				continue
 			}
 			res[f.Name()] = b
+			metrics.DatastoreReads.Add(1)
 		}
 	}
 	return res, err
