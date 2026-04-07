@@ -20,7 +20,7 @@ func UpdateJumpGates(jgList []JGInfo) {
 func MarkJumpgatesComplete(jgs []string, ts int64) {
 	l := plog.With("function", "MarkJumpgatesStarted")
 
-	if err := loadJumpgates(currentReset); err != nil {
+	if err := loadJumpgates(currentReset, time.Duration(30*time.Second)); err != nil {
 		l.Error("error loading current jumpgates")
 	}
 	updated := []JGInfo{}
@@ -43,7 +43,7 @@ func MarkJumpgatesComplete(jgs []string, ts int64) {
 func MarkJumpgatesStarted(jgs []string) {
 	l := plog.With("function", "MarkJumpgatesStarted")
 
-	if err := loadJumpgates(currentReset); err != nil {
+	if err := loadJumpgates(currentReset, time.Duration(30*time.Second)); err != nil {
 		l.Error("error loading current jumpgates")
 	}
 	updated := []JGInfo{}
@@ -98,9 +98,10 @@ func loadConstructions(thisReset Reset) error {
 // LoadJumpgates reads all the jumpgates in a reset
 // and builds the jumpageLists map entry for the provided reset
 // exported functions will filter and convert this list as needed.
-func loadJumpgates(thisReset Reset) error {
+// set a shorter lifetime for this as it is called every collection cycle
+func loadJumpgates(thisReset Reset, ttl time.Duration) error {
 	l := plog.With("function", "LoadJumpgates")
-	zeroTimer.Reset(cacheLifetime)
+	zeroTimer.Reset(ttl)
 	// noop if this is done already
 	if len(jumpgateLists[thisReset]) > 0 {
 		return nil
@@ -128,8 +129,11 @@ func loadJumpgates(thisReset Reset) error {
 }
 
 // GetJumpgates makes a map of system to the JGInfo
-func GetJumpgates(thisReset Reset) map[string]JGInfo {
-	if err := loadJumpgates(thisReset); err != nil {
+func GetJumpgates(thisReset Reset, ttl time.Duration) map[string]JGInfo {
+	if ttl == 0 {
+		ttl = cacheLifetime
+	}
+	if err := loadJumpgates(thisReset, ttl); err != nil {
 		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
 		return nil
 	}
@@ -142,7 +146,7 @@ func GetJumpgates(thisReset Reset) map[string]JGInfo {
 
 // Jumpgates is here, think it is used to get a list of all jumpgates in the systems
 func GetJumpgatesUnderConst(thisReset Reset) map[string]JGInfo {
-	if err := loadJumpgates(thisReset); err != nil {
+	if err := loadJumpgates(thisReset, time.Duration(30*time.Second)); err != nil {
 		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
 		return nil
 	}
@@ -158,7 +162,7 @@ func GetJumpgatesUnderConst(thisReset Reset) map[string]JGInfo {
 // GetJumpgatesNotStarted retuns jumpgates that have an active agent in the system
 // This does not return any other Status other than Active
 func GetJumpgatesNotStarted(thisReset Reset) map[string]JGInfo {
-	if err := loadJumpgates(thisReset); err != nil {
+	if err := loadJumpgates(thisReset, 0); err != nil {
 		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
 		return nil
 	}
@@ -188,12 +192,12 @@ type ConstructionRecord struct {
 // }
 
 func GetConstructionRecords(thisReset Reset, agents []string, dur time.Duration) map[string][]ConstructionRecord {
-	if err := loadJumpgates(thisReset); err != nil {
+	if err := loadJumpgates(thisReset, 0); err != nil {
 		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
 		return nil
 	}
 	agentRecords := GetAgents(thisReset)
-	jumpGates := GetJumpgates(thisReset)
+	jumpGates := GetJumpgates(thisReset, 0)
 	loadConstructions(thisReset)
 
 	res := make(map[string][]ConstructionRecord)
@@ -213,12 +217,12 @@ func GetConstructionRecords(thisReset Reset, agents []string, dur time.Duration)
 	return res
 }
 func GetLatestConstructionRecords(thisReset Reset, agents []string) []ConstructionOverview {
-	if err := loadJumpgates(thisReset); err != nil {
+	if err := loadJumpgates(thisReset, 0); err != nil {
 		plog.Error("error loading jumpgates", "thisReset", thisReset, "error", err)
 		return nil
 	}
 	agentRecords := GetAgents(thisReset)
-	jumpGates := GetJumpgates(thisReset)
+	jumpGates := GetJumpgates(thisReset, 0)
 	loadConstructions(thisReset)
 
 	res := []ConstructionOverview{}

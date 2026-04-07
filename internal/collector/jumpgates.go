@@ -24,7 +24,7 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 	c.ingestStart = time.Now()
 
 	// get a copy of the jumpgates
-	jgs := ds.GetJumpgates(c.currentReset)
+	jgs := ds.GetJumpgates(c.currentReset, time.Duration(5*time.Second))
 
 	// loop over the agents we got and update where needed
 	l.Debug("starting loop")

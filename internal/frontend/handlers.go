@@ -273,7 +273,7 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 
 func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 	slog.Debug("JumpgatesHandler")
-	gates := ds.GetJumpgates(ds.LatestReset())
+	gates := ds.GetJumpgates(ds.LatestReset(), 0)
 	if err := t.ExecuteTemplate(w, "jumpgates.html", gates); err != nil {
 		slog.Error("template error", "error", err)
 	}
