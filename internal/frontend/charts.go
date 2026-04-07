@@ -95,6 +95,9 @@ func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration
 	for jg, recs := range data {
 		fabItems := make([]opts.LineData, 0)
 		advItems := make([]opts.LineData, 0)
+		sort.Slice(recs, func(i, j int) bool {
+			return recs[i].Timestamp < recs[j].Timestamp
+		})
 		for _, r := range recs {
 			fabItems = append(fabItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Fabmat}})
 			advItems = append(advItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Advcct}})
