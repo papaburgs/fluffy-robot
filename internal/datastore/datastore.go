@@ -187,7 +187,8 @@ func watchTimer() {
 // zero initializes all the variables to empty
 // can be called on startup and also when idle for too long
 func zero() {
-	slog.Debug("Zeroing")
+	fmt.Println("zeroing")
+	factions = make([]Faction, 0)
 	agentsList = make(map[Reset][]Agent)
 	agentHistory = make(map[Reset][]AgentStatus)
 	stats = make(map[Reset]Stats)

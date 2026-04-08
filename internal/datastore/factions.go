@@ -5,54 +5,68 @@ import (
 	"fmt"
 )
 
-func StoreFactions(f []Faction) error {
-	return writeData("factions", 0, f)
+func StoreFactions(fac []Faction) error {
+	if currentReset == "" {
+		fmt.Println("level=Error, msg=\"Current Reset is empty\"")
+	}
+	for i, k := range fac {
+		k.Reset = currentReset
+		fac[i] = k
+	}
+	return writeData("factions", 0, fac)
 }
 
 func loadFactions(thisReset Reset) error {
-	l := plog.With("function", "loadFactions")
+	// l := plog.With("function", "loadFactions")
 
 	zeroTimer.Reset(cacheLifetime)
-	l.Debug("try to load factions", "reset", thisReset)
-	if stats[thisReset].Reset != "" {
-		l.Info("Cache built, this is noop")
-		return nil
+	// l.Debug("try to load factions", "reset", thisReset)
+
+	for _, c := range loadedCaches {
+		if c.reset == thisReset && c.cType == faction {
+			fmt.Println("Cache built, this is noop")
+			return nil
+		}
 	}
 	// use readdata to get back a map of filename to byte buffers
 	// NB use the . on the end so we don't get agentStatus files
-	m, err := readData("factions.", "")
+	m, err := readData("factions.", thisReset)
 	if err != nil {
-		l.Error("Failed to read stats file", "error", err)
+		fmt.Println("Failed to read stats file: ", err)
 		return err
 	}
 
 	if len(m) != 1 {
-		l.Error("should only get one result", "count", len(m))
+		fmt.Println("should only get one result got ", len(m))
 		return fmt.Errorf("invalid read")
 	}
 
-	for k, b := range m {
-		l.Debug("de-gobbing file", "filename", k)
-		var v []Faction
+	for _, b := range m {
 		// make a new decoder on the buffer, which is a Reader
 		gobDec := gob.NewDecoder(b)
 
 		// try to decode the gob into the stats object
-		if err := gobDec.Decode(&v); err != nil {
-			l.Error("error decoding gob", "error", err)
+		if err := gobDec.Decode(&factions); err != nil {
+			fmt.Println("error decoding gob: ", err)
 			return err
 		}
-		factionLists[thisReset] = v
 	}
+	m = nil
 	return nil
 }
 
 func GetFactions(thisReset Reset) []Faction {
 	l := plog.With("function", "GetFactions")
 	l.Debug("try to load factions", "reset", thisReset)
-	if err := loadStats(thisReset); err != nil {
+	if err := loadFactions(thisReset); err != nil {
 		l.Error("error loading stats", "thisReset", thisReset, "error", err)
-		return Stats{}
+		return []Faction{}
 	}
-	return factionLists[thisReset]
+	f := make([]Faction, 50)
+	for _, k := range factions {
+		if k.Reset == thisReset {
+			f = append(f, k)
+		}
+	}
+	return f
 }

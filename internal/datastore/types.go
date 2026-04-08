@@ -47,6 +47,7 @@ type ResponseStatus struct {
 }
 
 type Faction struct {
+	Reset        Reset
 	Symbol       string `json:"symbol"`
 	Name         string `json:"name"`
 	Description  string `json:"description"`
@@ -152,6 +153,29 @@ type ConstructionOverview struct {
 	Timestamp time.Time
 }
 
+// trying to move away from storing as maps and saving everything as a list
+// apparently that is a memory saver
+// so we can keep a list of items that are cached to keep track of what is loaded
+
+// cacheFlag is used to make a cache as being loaded
+type cacheFlag struct {
+	reset Reset
+	cType cacheType
+}
+
+type cacheType uint8
+
+const (
+	faction cacheType = iota
+	agent
+	agentStatus
+	construction
+	jumpgates
+	supplyChain
+)
+
+var loadedCaches []cacheFlag
+
 // these are variables that should be zeroed on startup or after inactivity
 // originally had make these public, but instead, making these just big maps
 // of lists of _the thing_ referenced by reset
@@ -168,5 +192,5 @@ var (
 
 	constructionsLists map[Reset][]JGConstruction
 
-	factionLists map[Reset][]Faction
+	factions []Faction
 )
