@@ -11,10 +11,8 @@ import (
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
-const targetDataPoints int = 150 // this will give 2 points per hour at 7 days
+const targetDataPoints int = 150
 
-// CreditChart will generate the chart based on duration
-// duration should be positive
 func CreditChart(agents []string, dur time.Duration, title string) *charts.Line {
 	line := charts.NewLine()
 	line.SetGlobalOptions(
@@ -50,9 +48,10 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 		}
 	}
 
+	thisReset := ds.Reset(resets[0])
 	for _, p := range agents {
-		hist := ds.GetAgentRecordsCredits(ds.Reset(resets[0]), p, dur)
-		items := make([]opts.LineData, targetDataPoints*2)
+		hist := ds.GetAgentRecordsCredits(thisReset, p, dur)
+		items := make([]opts.LineData, 0, targetDataPoints*2)
 		sort.Slice(hist, func(i, j int) bool {
 			return hist[i].Timestamp < hist[j].Timestamp
 		})
@@ -62,6 +61,7 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 			}
 		}
 		line.AddSeries(p, items)
+		hist = nil
 	}
 
 	return line
@@ -104,7 +104,10 @@ func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration
 		}
 		line.AddSeries(jg+" (Fabmat)", fabItems)
 		line.AddSeries(jg+" (Advcct)", advItems)
+		fabItems = nil
+		advItems = nil
 	}
+	data = nil
 	return line
 }
 
@@ -119,7 +122,6 @@ type ChartPageData struct {
 	ConstructionChart ChartSnippet
 }
 
-// RenderChartFragment renders the chart page content to the ResponseWriter.
 func RenderChartFragment(w io.Writer, data ChartPageData) error {
 	return t.ExecuteTemplate(w, "chart.html", data)
 }

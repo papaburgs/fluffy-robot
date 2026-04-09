@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html/template"
 	"io"
-	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,20 +15,22 @@ import (
 
 	"github.com/go-echarts/go-echarts/v2/charts"
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
+	"github.com/papaburgs/fluffy-robot/internal/logging"
+	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
 func RootHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("RootHandler")
+	start := time.Now()
 	w.Header().Set("Content-Type", "text/html")
-	slog.Info("Incoming request", "endpoint", "index")
+	logging.Info("Incoming request", "endpoint", "index")
 	if err := t.ExecuteTemplate(w, "index.html", nil); err != nil {
-		slog.Error("template error", "error", err)
+		logging.Error("template error", err)
 	}
+	metrics.RecordDuration("root", start)
 }
 
 func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("LoadChartHandler")
-
+	start := time.Now()
 	q := r.URL.Query()
 	storageAgents := q.Get("storageAgents")
 	paramAgents := q.Get("paramAgents")
@@ -38,11 +39,10 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 	pageData := ChartPageData{}
 
-	// Read period from query and select chart.
 	period := q.Get("period")
 	var duration time.Duration
 	var creditChart *charts.Line
-	slog.Info("Incoming request", "endpoint", "chart", "period", period)
+	logging.Info("Incoming request", "endpoint", "chart", "period", period)
 	title := ""
 	switch period {
 	case "24h":
@@ -67,14 +67,13 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 			Script:  template.HTML(snippet.Script),
 		}
 	}
-	// Get latest construction overview
-	// returns array of Construction record
-	overview := ds.GetLatestConstructionRecords(ds.Reset(resets[0]), agents)
-	pageData.ConstructionTable = overview
 
-	// Generate construction chart if any data
-	// returns map[string][]types.ConstructionRecord,
-	recs := ds.GetConstructionRecords(ds.Reset(resets[0]), agents, duration)
+	thisReset := ds.Reset(resets[0])
+	overview := ds.GetLatestConstructionRecords(thisReset, agents)
+	pageData.ConstructionTable = overview
+	overview = nil
+
+	recs := ds.GetConstructionRecords(thisReset, agents, duration)
 	constChart := JumpgateConstructionChart(recs, duration)
 	if constChart != nil {
 		snippet := constChart.RenderSnippet()
@@ -83,43 +82,46 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 			Script:  template.HTML(snippet.Script),
 		}
 	}
+	recs = nil
 
 	w.Header().Set("Content-Type", "text/html")
 	if err := RenderChartFragment(w, pageData); err != nil {
-		slog.Error("template error", "error", err)
+		logging.Error("template error", err)
 	}
+	metrics.RecordDuration("chart", start)
 }
 
 func PermissionsHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("PermissionsHandler")
-	// reset := ds.LatestReset()
+	start := time.Now()
 	agents := ds.GetAgents(ds.Reset(resets[0]))
 
 	if err := t.ExecuteTemplate(w, "permissions.html", map[string]interface{}{
 		"Agents": agents,
 	}); err != nil {
-		slog.Error("template error", "error", err)
+		logging.Error("template error", err)
 	}
+	agents = nil
+	metrics.RecordDuration("permissions", start)
 }
 
 func HeaderHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("HeaderHandler")
+	start := time.Now()
 	if err := t.ExecuteTemplate(w, "header.html", map[string]interface{}{
 		"Reset": ds.LatestReset(),
 	}); err != nil {
-		slog.Error("template error", "error", err)
+		logging.Error("template error", err)
 	}
+	metrics.RecordDuration("header", start)
 }
 
 func ExportHandler(w http.ResponseWriter, r *http.Request) {
-	plog.Info("Export Handler called")
+	start := time.Now()
+	logging.Info("Export Handler called")
 
-	// 1. Set the filename with a timestamp
 	filename := "data_export.tar.gz"
 	w.Header().Set("Content-Type", "application/gzip")
 	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
 
-	// 2. Initialize writers
 	gw := gzip.NewWriter(w)
 	defer gw.Close()
 	tw := tar.NewWriter(gw)
@@ -127,40 +129,33 @@ func ExportHandler(w http.ResponseWriter, r *http.Request) {
 
 	srcDir := ds.DataPath()
 
-	// 3. Walk the directory
 	err := filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		// Skip the root directory itself
 		if path == srcDir {
 			return nil
 		}
 
-		// Create a tar header
 		header, err := tar.FileInfoHeader(info, info.Name())
 		if err != nil {
 			return err
 		}
 
-		// Ensure the path inside the tar matches your structure (2026-03-29/file.gob.zst)
 		relPath, err := filepath.Rel(srcDir, path)
 		if err != nil {
 			return err
 		}
 		header.Name = relPath
 
-		// Write header
 		if err := tw.WriteHeader(header); err != nil {
 			return err
 		}
 
-		// If it's a directory, we're done with this iteration
 		if info.IsDir() {
 			return nil
 		}
 
-		// 4. Stream the file content
 		file, err := os.Open(path)
 		if err != nil {
 			return err
@@ -174,11 +169,11 @@ func ExportHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, "Failed to package data", http.StatusInternalServerError)
 	}
+	metrics.RecordDuration("export", start)
 }
 
 func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("PermissionsGridHandler")
-
+	start := time.Now()
 	type data struct {
 		Name      string
 		Credits   int64
@@ -201,11 +196,9 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for agent, details := range agents {
-		// Filter by search string
 		if searchStr != "" && !strings.Contains(strings.ToLower(agent), searchStr) {
 			continue
 		}
-		// Filter inactive if requested
 		if hideInactive && details.Credits == 175000 {
 			continue
 		}
@@ -219,62 +212,78 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Sort agents
 	sort.Slice(d, func(i, j int) bool {
 		if sortBy == "credits" {
 			if d[i].Credits != d[j].Credits {
-				return d[i].Credits > d[j].Credits // Descending credits
+				return d[i].Credits > d[j].Credits
 			}
-			return d[i].Name < d[j].Name // Tie-break by name
+			return d[i].Name < d[j].Name
 		}
-		return d[i].Name < d[j].Name // Ascending name (default)
+		return d[i].Name < d[j].Name
 	})
 
+	agents = nil
+	storageAgentsMap = nil
+
 	if err := t.ExecuteTemplate(w, "permissions-grid.html", d); err != nil {
-		slog.Error("template error", "error", err)
+		logging.Error("template error", err)
 	}
+	metrics.RecordDuration("permissions_grid", start)
 }
 
 func LeaderboardHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("LeaderboardHandler")
+	start := time.Now()
 	leaderboardType := r.URL.Query().Get("type")
 	if leaderboardType == "" {
 		leaderboardType = "credits"
 	}
-	slog.Debug("Have leaderboard type", "lbt", leaderboardType)
 	myAgent := r.URL.Query().Get("myAgent")
 
-	creditLB, chartLB := ds.GetLeaderboard(ds.LatestReset())
+	creditLB, chartLB, err := ds.GetLeaderboard(ds.LatestReset())
+	if err != nil {
+		logging.Error("error loading leaderboard", err)
+		creditLB = nil
+		chartLB = nil
+	}
 
 	data := creditLB
 	if leaderboardType == "charts" {
 		data = chartLB
 	}
 
-	slog.Debug("have data", "data", data, "lbt", leaderboardType, "agent", myAgent)
-
-	err := t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
+	err = t.ExecuteTemplate(w, "leaderboard.html", map[string]interface{}{
 		"Type":    leaderboardType,
 		"Data":    data,
 		"MyAgent": myAgent,
 	})
+	creditLB = nil
+	chartLB = nil
+	data = nil
 	if err != nil {
-		slog.Error("template error", "error", err)
+		logging.Error("template error", err)
 	}
+	metrics.RecordDuration("leaderboard", start)
 }
 
 func StatsHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("StatsHandler")
-	stats := ds.GetStats(ds.LatestReset())
-	if err := t.ExecuteTemplate(w, "stats.html", stats); err != nil {
-		slog.Error("template error", "error", err)
+	start := time.Now()
+	stats, err := ds.GetStats(ds.LatestReset())
+	if err != nil {
+		logging.Error("error loading stats", err)
+		stats = ds.Stats{}
 	}
+	if err := t.ExecuteTemplate(w, "stats.html", stats); err != nil {
+		logging.Error("template error", err)
+	}
+	metrics.RecordDuration("stats", start)
 }
 
 func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
-	slog.Debug("JumpgatesHandler")
-	gates := ds.GetJumpgates(ds.LatestReset(), 0)
+	start := time.Now()
+	gates := ds.GetJumpgates(ds.LatestReset())
 	if err := t.ExecuteTemplate(w, "jumpgates.html", gates); err != nil {
-		slog.Error("template error", "error", err)
+		logging.Error("template error", err)
 	}
+	gates = nil
+	metrics.RecordDuration("jumpgates", start)
 }

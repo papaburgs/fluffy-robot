@@ -4,11 +4,11 @@ import (
 	"encoding/gob"
 	"fmt"
 	"time"
+
+	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
 
 func StoreAgents(apiAgents []PublicAgent, now int64) {
-	l := plog.With("function", "LoadAgents")
-	l.Debug("Writing Agents")
 	var (
 		agentList  = []Agent{}
 		statusList = []AgentStatus{}
@@ -33,128 +33,96 @@ func StoreAgents(apiAgents []PublicAgent, now int64) {
 	}
 	writeData("agents", 0, agentList)
 	writeData("agentsStatus", now, statusList)
+	statusList = nil
 }
 
-// LoadAgents makes the Agents map
-func loadAgents(thisReset Reset) error {
-	l := plog.With("function", "LoadAgents")
-	zeroTimer.Reset(cacheLifetime)
-	if len(agentsList[thisReset]) > 0 {
-		l.Info("Cache built, this is noop")
-		return nil
-	}
-	// use readdata to get back a map of filename to byte buffers
-	// NB use the . on the end so we don't get agentStatus files
+func GetAgentList(thisReset Reset) ([]Agent, error) {
+	res := []Agent{}
 	m, err := readData("agents.", thisReset)
 	if err != nil {
-		l.Error("Failed to load agents", "error", err)
-		return err
+		logging.Error("Failed to load agents:", err)
+		return res, err
 	}
 
 	if len(m) != 1 {
-		l.Error("should only get one result", "count", len(m))
-		return fmt.Errorf("invalid read")
+		return res, fmt.Errorf("invalid read")
 	}
 
 	for _, b := range m {
-		var v []Agent
-		// make a new decoder on the buffer, which is a Reader
 		gobDec := gob.NewDecoder(b)
-
-		// try to decode the gob into an array of Agent, which is how its written
-		if err := gobDec.Decode(&v); err != nil {
-			l.Error("error decoding gob", "error", err)
-			return err
+		if err := gobDec.Decode(&res); err != nil {
+			logging.Error("error decoding gob", err)
+			return res, err
 		}
-		agentsList[thisReset] = v
 	}
-	l.Debug("loaded agents", "count", len(agentsList[thisReset]))
-	return nil
+	m = nil
+	return res, nil
 }
 
-// loadAgentHistory gets all the data from a reset and makes a list
-// then user called functions use that list to make specific maps
-func loadAgentHistory(thisReset Reset) error {
-	l := plog.With("function", "makeResetListofAgents")
-	start := time.Now()
-	zeroTimer.Reset(cacheLifetime)
-	if len(agentHistory[thisReset]) != 0 {
-		l.Info("Cache built, this is noop")
-		return nil
-	}
-	// use readdata to get back a map of filename to byte buffers
-	// NB use the dash to make it unique
+func GetAgentHistory(thisReset Reset) ([]AgentStatus, error) {
+	res := []AgentStatus{}
 	m, err := readData("agentsStatus-", thisReset)
 	if err != nil {
-		l.Error("Failed to load agents", "error", err)
-		return err
+		logging.Error("Failed to load agent history:", err)
+		return res, err
 	}
 
-	agentHistory[thisReset] = []AgentStatus{}
-	for f, b := range m {
-		// make a new decoder on the buffer, which is a Reader
+	for _, b := range m {
 		gobDec := gob.NewDecoder(b)
-
-		// try to decode the gob into an array of AgentStatus, which is how its written
-		var v []AgentStatus
+		v := make([]AgentStatus, len(m)*2)
 		if err := gobDec.Decode(&v); err != nil {
-			l.Error("error decoding gob", "error", err)
-			return err
+			logging.Error("error decoding gob:", err)
+			return res, err
 		}
-		l.Debug("processed file", "file", f, "recordds", len(v))
-		agentHistory[thisReset] = append(agentHistory[thisReset], v...)
+		res = append(res, v...)
 	}
-	l.Debug("Generated List of all agents on reset", "reset", thisReset, "duration", time.Now().Sub(start))
-	return nil
+	m = nil
+	return res, nil
 }
 
 func GetAgentRecordsCredits(thisReset Reset, agent string, dur time.Duration) []DataPoint {
-	l := plog.With("function", "GetAgentRecordsCredits")
-	start := time.Now()
-	if err := loadAgentHistory(thisReset); err != nil {
-		l.Error("error making list of agents for reset", "reset", thisReset, "error", err)
+	agents, err := GetAgentHistory(thisReset)
+	if err != nil {
+		logging.Error("error making list of agents for reset", "reset", thisReset, "error", err)
 		return nil
 	}
-	l.Debug("Have data", "agent", agent, "reset", thisReset, "duration", dur, "histories", len(agentHistory[thisReset]))
 	var res []DataPoint
 	cutoff := time.Now().Add(-1 * dur).Unix()
-	for _, r := range agentHistory[thisReset] {
+	for _, r := range agents {
 		if r.Symbol == agent && cutoff < r.Timestamp {
 			res = append(res, DataPoint{Timestamp: r.Timestamp, Value: r.Credits})
 		}
 	}
-	l.Debug("Got agent records for credits", "reset", thisReset, "agent", agent, "duration", time.Now().Sub(start), "records", len(res))
+	agents = nil
 	return res
 }
 
 func GetAgentRecordsShips(thisReset Reset, agent string, dur time.Duration) []DataPoint {
-	l := plog.With("function", "GetAgentRecordsCredits")
-	start := time.Now()
-	if err := loadAgentHistory(thisReset); err != nil {
-		l.Error("error making list of agents for reset", "reset", thisReset, "error", err)
+	agents, err := GetAgentHistory(thisReset)
+	if err != nil {
 		return nil
 	}
 	var res []DataPoint
 	cutoff := time.Now().Add(-dur).Unix()
-	for _, r := range agentHistory[thisReset] {
+	for _, r := range agents {
 		if r.Symbol == agent && cutoff > r.Timestamp {
 			res = append(res, DataPoint{Timestamp: r.Timestamp, Value: r.Ships})
 		}
 	}
-	l.Debug("Got agent records for ships", "reset", thisReset, "agent", agent, "duration", time.Now().Sub(start))
+	agents = nil
 	return res
 }
 
-// GetAgents returns a map of agent name to agent data for provided reset
 func GetAgents(thisReset Reset) map[string]Agent {
-	l := plog.With("function", "GetAgents")
-	if err := loadAgents(thisReset); err != nil {
-		l.Error("error loading agents", "reset", thisReset, "error", err)
+	agents, err := GetAgentList(thisReset)
+	if err != nil {
+		logging.Error("error loading agents", "reset", thisReset, "error", err)
 		return nil
 	}
-	res := make(map[string]Agent)
-	for _, a := range agentsList[thisReset] {
+	res := make(map[string]Agent, len(agents))
+	for _, a := range agents {
 		res[a.Symbol] = a
 	}
+	agents = nil
 	return res
 }

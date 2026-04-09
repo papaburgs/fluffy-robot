@@ -61,7 +61,6 @@ func (c *Collector) doGET(ctx context.Context, url string) (HTTPResponse, error)
 			continue
 		}
 
-		// Handle 4xx or 5xx codes
 		retriesOther++
 		metrics.CollectorAPIOtherRetries.Add(1)
 		if retriesOther >= 3 {

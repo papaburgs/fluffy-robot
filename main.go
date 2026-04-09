@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"strconv"
 	"time"
@@ -16,12 +15,10 @@ import (
 
 func main() {
 	logging.InitLogger()
-	l := slog.With("function", "main")
-	l.Debug("Main start")
 
 	gateBucketSize, err := strconv.Atoi(os.Getenv("FLUFFY_GATE_BUCKET_SIZE"))
 	if err != nil {
-		l.Error("error parsing FLUFFY_GATE_BUCKET_SIZE, defaulting to 20", "error", err)
+		logging.Error("error parsing FLUFFY_GATE_BUCKET_SIZE, defaulting to 20", "error", err)
 		gateBucketSize = 20
 	}
 	baseURL := "https://api.spacetraders.io/v2"
@@ -32,7 +29,6 @@ func main() {
 	time.Sleep(time.Second)
 	go c.Run(context.Background())
 
-	l.Debug("Collector started, sleep for a couple seconds")
 	time.Sleep(2 * time.Second)
 	frontend.StartServer()
 }

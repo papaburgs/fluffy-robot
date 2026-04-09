@@ -3,10 +3,11 @@ package gate
 import (
 	"container/list"
 	"context"
-	"log/slog"
+	"fmt"
 	"sync"
 	"time"
 
+	"github.com/papaburgs/fluffy-robot/internal/logging"
 	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
@@ -21,12 +22,6 @@ type Gate struct {
 	queue      *list.List
 	queueMutex sync.Mutex
 }
-
-// var (
-// 	t1Time    time.Duration = time.Second + 20*time.Millisecond
-// 	t60Time   time.Duration = time.Minute
-// 	checkTime time.Duration = 20 * time.Millisecond
-// )
 
 func New(t1Limit, t60Limit int) *Gate {
 	var g = Gate{
@@ -46,24 +41,20 @@ func New(t1Limit, t60Limit int) *Gate {
 }
 
 func (g *Gate) loop() {
-	l := slog.With("func", "Loop")
 	ratelimit := 1
 	for {
 		select {
 		case <-g.t1Ticker.C:
-			// A second has passed, reset counter
 			g.queueMutex.Lock()
 			g.t1Count = 0
 			ratelimit = 1
 			g.queueMutex.Unlock()
 		case <-g.t60Ticker.C:
-			// A minute has passed, reset that counter
 			g.queueMutex.Lock()
 			g.t60Count = 0
 			ratelimit = 1
 			g.queueMutex.Unlock()
 		case <-g.tCheck.C:
-			// If the check timer hits, process the queue
 			g.queueMutex.Lock()
 			node := g.queue.Front()
 			if node != nil {
@@ -74,8 +65,6 @@ func (g *Gate) loop() {
 						metrics.GateT1Requests.Add(1)
 						c <- true
 						g.queue.Remove(node)
-						// l.Debug("sending in t1")
-
 					case g.t60Count < g.t60Limit:
 						if g.t60Count == 0 {
 							g.t60Ticker.Reset(time.Minute)
@@ -84,17 +73,13 @@ func (g *Gate) loop() {
 						metrics.GateT60Requests.Add(1)
 						c <- true
 						g.queue.Remove(node)
-						// l.Debug("sending in t60")
 					default:
-						// if we get here we are blocking the Latch until the second ticks over
-						// we will go through the loop and if we fall back here, we increase wait time
 						ratelimit++
 						metrics.GateBlocked.Add(1)
 						time.Sleep(time.Duration(ratelimit) * 100 * time.Millisecond)
 					}
 				} else {
-					// this has happened once, before I added mutex, should not get here
-					l.Warn("Not sure what's going on here - type is not a chan bool")
+					logging.Warn("Not sure what's going on here - type is not a chan bool")
 					g.queue.Remove(node)
 				}
 			}
@@ -103,10 +88,6 @@ func (g *Gate) loop() {
 	}
 }
 
-// Latch takes in a context and blocks until it is safe to proceed
-// a channel is created and put on a queue.
-// the loop function goes over that queue and sends a true back, this unblocks
-// this function, it will return and the call can proceed
 func (g *Gate) Latch(ctx context.Context) {
 	g.queueMutex.Lock()
 	c := make(chan bool)
@@ -117,11 +98,10 @@ func (g *Gate) Latch(ctx context.Context) {
 	case <-c:
 		return
 	case <-ctx.Done():
-		slog.Warn("context cancelled")
+		fmt.Println("level=warn context cancelled")
 	}
 }
 
-// if we get a 429, we will lock the gate, meaning no one gets through until they reset
 func (g *Gate) Lock(ctx context.Context) {
 	g.queueMutex.Lock()
 	g.t1Count = 9999

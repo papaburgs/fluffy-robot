@@ -1,30 +1,49 @@
 package logging
 
 import (
-	"log/slog"
+	"fmt"
 	"os"
 	"strings"
+	"sync"
 )
 
-// InitLogger will make a new text logger based on FLUFFY_LOG_LEVEL
+var (
+	debugMu   sync.Mutex
+	debugMode bool
+)
+
 func InitLogger() {
-	h := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-	if logl, ok := os.LookupEnv("FLUFFY_LOG_LEVEL"); !ok {
-		h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
-	} else {
+	if logl, ok := os.LookupEnv("FLUFFY_LOG_LEVEL"); ok {
 		switch strings.ToLower(logl) {
 		case "debug", "dbg":
-			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
-		case "warn", "wrn":
-			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelWarn})
-		case "error", "err":
-			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError})
-		default:
-			h = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo})
+			debugMode = true
 		}
 	}
+}
 
-	// Create a new text handler that writes to the log file.
-	l := slog.New(h)
-	slog.SetDefault(l)
+func SetDebug(b bool) {
+	debugMu.Lock()
+	defer debugMu.Unlock()
+	debugMode = b
+}
+
+func Debug(msg ...any) {
+	debugMu.Lock()
+	d := debugMode
+	debugMu.Unlock()
+	if d {
+		fmt.Println(msg...)
+	}
+}
+
+func Info(msg ...any) {
+	fmt.Println(msg...)
+}
+
+func Warn(msg ...any) {
+	fmt.Println(append([]any{"level=warn"}, msg...)...)
+}
+
+func Error(msg ...any) {
+	fmt.Println(append([]any{"level=Error"}, msg...)...)
 }

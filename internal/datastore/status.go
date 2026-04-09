@@ -6,9 +6,9 @@ import (
 	"os"
 	"sort"
 	"time"
-)
 
-// Stats consists of data on the status endpoint, not counting leaderboard
+	"github.com/papaburgs/fluffy-robot/internal/logging"
+)
 
 func StoreStats(r ResponseStatus) error {
 	st := Stats{
@@ -54,108 +54,55 @@ func StoreLeaderboards(r ResponseStatus) error {
 	return nil
 }
 
-func loadStats(thisReset Reset) error {
-	l := plog.With("function", "LoadStats")
-
-	zeroTimer.Reset(cacheLifetime)
-	l.Debug("try to load stats", "reset", thisReset)
-	if stats[thisReset].Reset != "" {
-		l.Info("Cache built, this is noop")
-		return nil
-	}
-	// use readdata to get back a map of filename to byte buffers
-	// NB use the . on the end so we don't get agentStatus files
+func GetStats(thisReset Reset) (Stats, error) {
+	res := Stats{}
 	m, err := readData("stats.", "")
 	if err != nil {
-		l.Error("Failed to read stats file", "error", err)
-		return err
+		return res, err
 	}
 
 	if len(m) != 1 {
-		l.Error("should only get one result", "count", len(m))
-		return fmt.Errorf("invalid read")
+		return res, fmt.Errorf("invalid read")
 	}
 
-	for k, b := range m {
-		l.Debug("de-gobbing file", "filename", k)
-		var v Stats
-		// make a new decoder on the buffer, which is a Reader
+	for _, b := range m {
 		gobDec := gob.NewDecoder(b)
-
-		// try to decode the gob into the stats object
-		if err := gobDec.Decode(&v); err != nil {
-			l.Error("error decoding gob", "error", err)
-			return err
+		if err := gobDec.Decode(&res); err != nil {
+			return res, err
 		}
-		stats[thisReset] = v
 	}
-	return nil
+	m = nil
+	return res, nil
 }
 
-func GetStats(thisReset Reset) Stats {
-	l := plog.With("function", "GetStats")
-	l.Debug("try to load stats", "reset", thisReset)
-	if err := loadStats(thisReset); err != nil {
-		l.Error("error loading stats", "thisReset", thisReset, "error", err)
-		return Stats{}
-	}
-	return stats[thisReset]
-}
-
-func loadLeaderboard(thisReset Reset) error {
-	l := plog.With("function", "LoadLeaderboard")
-	zeroTimer.Reset(cacheLifetime)
-	// use readdata to get back a map of filename to byte buffers
-	// NB use the . on the end so we don't get agentStatus files
+func GetLeaderboard(thisReset Reset) ([]LeaderboardEntry, []LeaderboardEntry, error) {
+	res := LeaderboardRecord{}
 	m, err := readData("leaderboard.", thisReset)
 	if err != nil {
-		l.Error("Failed to read file", "error", err)
-		return err
+		logging.Error("Failed to read file", err)
+		return nil, nil, err
 	}
 
 	if len(m) != 1 {
-		l.Error("should only get one result", "count", len(m))
-		return fmt.Errorf("invalid read")
+		return nil, nil, fmt.Errorf("invalid read")
 	}
 
-	for k, b := range m {
-		l.Debug("de-gobbing file", "filename", k)
-		var v LeaderboardRecord
-		// make a new decoder on the buffer, which is a Reader
+	for _, b := range m {
 		gobDec := gob.NewDecoder(b)
-
-		// try to decode the gob into the stats object
-		if err := gobDec.Decode(&v); err != nil {
-			l.Error("error decoding gob", "error", err)
-			return err
+		if err := gobDec.Decode(&res); err != nil {
+			logging.Error("error decoding gob", err)
+			return nil, nil, err
 		}
-		creditLeaders[thisReset] = v.CreditsList
-		chartLeaders[thisReset] = v.ChartsList
 	}
-	return nil
+	m = nil
+	return res.CreditsList, res.ChartsList, nil
 }
 
-// GetLeaderboard returns the credit and charts leaderboard for provided reset
-func GetLeaderboard(thisReset Reset) ([]LeaderboardEntry, []LeaderboardEntry) {
-	l := plog.With("function", "GetLeaderboard")
-	if err := loadLeaderboard(thisReset); err != nil {
-		l.Error("error loading leaderboard", "thisReset", thisReset, "error", err)
-		return nil, nil
-	}
-	return creditLeaders[thisReset], chartLeaders[thisReset]
-}
-
-// AllResets reads each directory in the path directory and makes a list
-// of all the resets sorted in alphabetical order,
-// which should be the same as chronological order
-// since the resets are in YYYY-MM-DD format.
-// This is used to populate the dropdown for selecting resets on the frontend.
 func AllResets() []string {
-	l := plog.With("function", "AllResets")
 	resets := []string{}
 	files, err := os.ReadDir(path)
 	if err != nil {
-		l.Error("Failed to read resets directory", "error", err)
+		logging.Error("Failed to read resets directory", err)
 		return resets
 	}
 
@@ -164,7 +111,6 @@ func AllResets() []string {
 			resets = append(resets, f.Name())
 		}
 	}
-	// before returning sort the resets in reverse order so the most recent reset is first
 	sort.Slice(resets, func(i, j int) bool {
 		return resets[i] > resets[j]
 	})
@@ -174,7 +120,7 @@ func AllResets() []string {
 func LatestReset() Reset {
 	for {
 		if currentReset == "" {
-			plog.Debug("reset is not updated yet")
+			// logging.Debug("reset is not updated yet")
 			time.Sleep(time.Second)
 		} else {
 			break
@@ -186,12 +132,16 @@ func LatestReset() Reset {
 func NextReset() time.Time {
 	for {
 		if currentReset == "" {
-			plog.Debug("reset is not updated yet")
+			// logging.Debug("reset is not updated yet")
 			time.Sleep(time.Second)
 		} else {
 			break
 		}
 	}
-	loadStats(currentReset)
-	return stats[currentReset].NextReset
+	st, err := GetStats(currentReset)
+	if err != nil {
+		logging.Error("error loading stats for NextReset", err)
+		return time.Time{}
+	}
+	return st.NextReset
 }

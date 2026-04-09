@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"expvar"
+	"time"
 )
 
 var (
@@ -24,3 +25,17 @@ var (
 	DatastoreReads       = expvar.NewInt("datastore_read_operations_total")
 	DatastoreCacheResets = expvar.NewInt("datastore_cache_resets_total")
 )
+
+func getOrCreateMap(name string) *expvar.Map {
+	if v := expvar.Get(name); v != nil {
+		return v.(*expvar.Map)
+	}
+	return expvar.NewMap(name)
+}
+
+func RecordDuration(name string, start time.Time) {
+	elapsed := time.Since(start)
+	m := getOrCreateMap("handler_" + name)
+	m.Add("count", 1)
+	m.Add("total_ms", elapsed.Milliseconds())
+}
