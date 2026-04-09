@@ -103,9 +103,9 @@ func GetAgentRecordsShips(thisReset Reset, agent string, dur time.Duration) []Da
 		return nil
 	}
 	var res []DataPoint
-	cutoff := time.Now().Add(-dur).Unix()
+	cutoff := time.Now().Add(-1 * dur).Unix()
 	for _, r := range agents {
-		if r.Symbol == agent && cutoff > r.Timestamp {
+		if r.Symbol == agent && cutoff < r.Timestamp {
 			res = append(res, DataPoint{Timestamp: r.Timestamp, Value: r.Ships})
 		}
 	}

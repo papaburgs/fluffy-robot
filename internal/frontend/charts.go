@@ -26,6 +26,7 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 		charts.WithYAxisOpts(opts.YAxis{
 			Min:      0,
 			Position: "right",
+			Name:     "Credits",
 		}),
 		charts.WithXAxisOpts(opts.XAxis{
 			Type: "time",
@@ -37,6 +38,11 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 			Trigger: "axis",
 		}),
 	)
+	line.ExtendYAxis(opts.YAxis{
+		Min:      0,
+		Position: "left",
+		Name:     "Ships",
+	})
 	collectionTime := 5
 	dpPerHour := 60 / collectionTime
 	estimatedTotal := int(dur.Hours()) * dpPerHour
@@ -50,18 +56,32 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 
 	thisReset := ds.Reset(resets[0])
 	for _, p := range agents {
-		hist := ds.GetAgentRecordsCredits(thisReset, p, dur)
-		items := make([]opts.LineData, 0, targetDataPoints*2)
-		sort.Slice(hist, func(i, j int) bool {
-			return hist[i].Timestamp < hist[j].Timestamp
+		creditHist := ds.GetAgentRecordsCredits(thisReset, p, dur)
+		creditItems := make([]opts.LineData, 0, targetDataPoints*2)
+		sort.Slice(creditHist, func(i, j int) bool {
+			return creditHist[i].Timestamp < creditHist[j].Timestamp
 		})
-		for i, r := range hist {
+		for i, r := range creditHist {
 			if i%stride == 0 {
-				items = append(items, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
+				creditItems = append(creditItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
 			}
 		}
-		line.AddSeries(p, items)
-		hist = nil
+		line.AddSeries(p+" (Credits)", creditItems)
+
+		shipHist := ds.GetAgentRecordsShips(thisReset, p, dur)
+		shipItems := make([]opts.LineData, 0, targetDataPoints*2)
+		sort.Slice(shipHist, func(i, j int) bool {
+			return shipHist[i].Timestamp < shipHist[j].Timestamp
+		})
+		for i, r := range shipHist {
+			if i%stride == 0 {
+				shipItems = append(shipItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
+			}
+		}
+		line.AddSeries(p+" (Ships)", shipItems, charts.WithLineChartOpts(opts.LineChart{YAxisIndex: 1}))
+
+		creditHist = nil
+		shipHist = nil
 	}
 
 	return line
