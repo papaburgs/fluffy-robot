@@ -3,6 +3,7 @@ package datastore
 import (
 	"encoding/gob"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/logging"
@@ -59,7 +60,10 @@ func GetAgentList(thisReset Reset) ([]Agent, error) {
 	return res, nil
 }
 
-func GetAgentHistory(thisReset Reset) ([]AgentStatus, error) {
+func GetAgentHistory(thisReset Reset, start, end int64) ([]AgentStatus, error) {
+	if end == 0 {
+		end = time.Now().Unix()
+	}
 	res := []AgentStatus{}
 	m, err := readData("agentsStatus-", thisReset)
 	if err != nil {
@@ -74,73 +78,15 @@ func GetAgentHistory(thisReset Reset) ([]AgentStatus, error) {
 			logging.Error("error decoding gob:", err)
 			return res, err
 		}
-		res = append(res, v...)
+		for _, r := range v {
+			if r.Timestamp >= start && r.Timestamp <= end {
+				res = append(res, r)
+			}
+		}
 	}
 	m = nil
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Timestamp < res[j].Timestamp
+	})
 	return res, nil
-}
-
-func GetAgentRecordsCredits(thisReset Reset, agent string, dur time.Duration) []DataPoint {
-	agents, err := GetAgentHistory(thisReset)
-	if err != nil {
-		logging.Error("error making list of agents for reset", "reset", thisReset, "error", err)
-		return nil
-	}
-	var res []DataPoint
-	cutoff := time.Now().Add(-1 * dur).Unix()
-	for _, r := range agents {
-		if r.Symbol == agent && cutoff < r.Timestamp {
-			res = append(res, DataPoint{Timestamp: r.Timestamp, Value: r.Credits})
-		}
-	}
-	agents = nil
-	return res
-}
-
-func GetAgentRecordsShips(thisReset Reset, agent string, dur time.Duration) []DataPoint {
-	agents, err := GetAgentHistory(thisReset)
-	if err != nil {
-		return nil
-	}
-	var res []DataPoint
-	cutoff := time.Now().Add(-1 * dur).Unix()
-	for _, r := range agents {
-		if r.Symbol == agent && cutoff < r.Timestamp {
-			res = append(res, DataPoint{Timestamp: r.Timestamp, Value: r.Ships})
-		}
-	}
-	agents = nil
-	return res
-}
-
-func GetAgents(thisReset Reset) map[string]Agent {
-	agents, err := GetAgentList(thisReset)
-	if err != nil {
-		logging.Error("error loading agents", "reset", thisReset, "error", err)
-		return nil
-	}
-	res := make(map[string]Agent, len(agents))
-	for _, a := range agents {
-		res[a.Symbol] = a
-	}
-	agents = nil
-	return res
-}
-
-func GetLatestShipsForAgents(thisReset Reset) map[string]int64 {
-	history, err := GetAgentHistory(thisReset)
-	if err != nil {
-		return nil
-	}
-	latest := make(map[string]int64)
-	latestTs := make(map[string]int64)
-	for _, r := range history {
-		if r.Timestamp > latestTs[r.Symbol] {
-			latestTs[r.Symbol] = r.Timestamp
-			latest[r.Symbol] = r.Ships
-		}
-	}
-	history = nil
-	latestTs = nil
-	return latest
 }

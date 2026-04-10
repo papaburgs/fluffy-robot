@@ -38,4 +38,11 @@ func RecordDuration(name string, start time.Time) {
 	m := getOrCreateMap("handler_" + name)
 	m.Add("count", 1)
 	m.Add("total_ms", elapsed.Milliseconds())
+	if v := m.Get("latest_ms"); v != nil {
+		v.(*expvar.Int).Set(elapsed.Milliseconds())
+	} else {
+		v := new(expvar.Int)
+		v.Set(elapsed.Milliseconds())
+		m.Set("latest_ms", v)
+	}
 }

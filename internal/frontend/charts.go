@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"fmt"
 	"html/template"
 	"io"
 	"sort"
@@ -13,7 +14,125 @@ import (
 
 const targetDataPoints int = 50
 
-func CreditChart(agents []string, dur time.Duration, title string) *charts.Line {
+func agentsMap(agents []ds.Agent) map[string]ds.Agent {
+	res := make(map[string]ds.Agent, len(agents))
+	for _, a := range agents {
+		res[a.Symbol] = a
+	}
+	return res
+}
+
+func latestShips(history []ds.AgentStatus) map[string]int64 {
+	latest := make(map[string]int64)
+	latestTs := make(map[string]int64)
+	for _, r := range history {
+		if r.Timestamp > latestTs[r.Symbol] {
+			latestTs[r.Symbol] = r.Timestamp
+			latest[r.Symbol] = r.Ships
+		}
+	}
+	return latest
+}
+
+func agentRecordsCredits(history []ds.AgentStatus, agent string, dur time.Duration) []ds.DataPoint {
+	var res []ds.DataPoint
+	cutoff := time.Now().Add(-1 * dur).Unix()
+	for _, r := range history {
+		if r.Symbol == agent && r.Timestamp >= cutoff {
+			res = append(res, ds.DataPoint{Timestamp: r.Timestamp, Value: r.Credits})
+		}
+	}
+	return res
+}
+
+func agentRecordsShips(history []ds.AgentStatus, agent string, dur time.Duration) []ds.DataPoint {
+	var res []ds.DataPoint
+	cutoff := time.Now().Add(-1 * dur).Unix()
+	for _, r := range history {
+		if r.Symbol == agent && r.Timestamp >= cutoff {
+			res = append(res, ds.DataPoint{Timestamp: r.Timestamp, Value: r.Ships})
+		}
+	}
+	return res
+}
+
+func constructionRecords(agentsMap map[string]ds.Agent, jgs map[string]ds.JGInfo, constructions []ds.JGConstruction, agentNames []string) map[string][]ds.ConstructionRecord {
+	res := make(map[string][]ds.ConstructionRecord)
+	for _, a := range agentNames {
+		thisAgent, ok := agentsMap[a]
+		if !ok {
+			continue
+		}
+		thisJG, ok := jgs[thisAgent.System]
+		if !ok {
+			continue
+		}
+		for _, rec := range constructions {
+			if rec.Jumpgate == thisJG.Jumpgate {
+				res[a] = append(res[a], ds.ConstructionRecord{
+					Timestamp: rec.Timestamp,
+					Fabmat:    rec.Fabmat,
+					Advcct:    rec.Advcct,
+				})
+			}
+		}
+	}
+	return res
+}
+
+func latestConstructionRecords(agentsMap map[string]ds.Agent, jgs map[string]ds.JGInfo, constructions []ds.JGConstruction, agentNames []string) []ds.ConstructionOverview {
+	res := []ds.ConstructionOverview{}
+	for _, a := range agentNames {
+		thisAgent, ok := agentsMap[a]
+		if !ok {
+			continue
+		}
+		thisJG, ok := jgs[thisAgent.System]
+		if !ok {
+			continue
+		}
+		jgLatest := ds.JGConstruction{}
+		for _, rec := range constructions {
+			if rec.Jumpgate != thisJG.Jumpgate {
+				continue
+			}
+			if rec.Timestamp > jgLatest.Timestamp {
+				jgLatest = rec
+			}
+		}
+		if jgLatest.Timestamp == 0 {
+			jgLatest.Timestamp = time.Now().Unix()
+		}
+		res = append(res, ds.ConstructionOverview{
+			Agent:     a,
+			Jumpgate:  thisJG.Jumpgate,
+			Fabmat:    jgLatest.Fabmat,
+			Advcct:    jgLatest.Advcct,
+			Timestamp: time.Unix(jgLatest.Timestamp, 0).UTC(),
+		})
+	}
+	return res
+}
+
+func jumpgatesMap(jgs []ds.JGInfo) map[string]ds.JGInfo {
+	res := make(map[string]ds.JGInfo, len(jgs))
+	for _, j := range jgs {
+		res[j.System] = j
+	}
+	return res
+}
+
+func constructionString(co ds.ConstructionOverview, jg ds.JGInfo) (string, bool) {
+	if jg.Status == ds.Complete {
+		return "Complete", true
+	}
+	if co.Fabmat > 0 || co.Advcct > 0 {
+		return fmt.Sprintf("%d/1600 FB, %d/400 AC", co.Fabmat, co.Advcct), true
+	}
+	return "\u2014", false
+}
+
+func CreditChart(agents []string, history []ds.AgentStatus, dur time.Duration, title string) *charts.Line {
 	line := charts.NewLine()
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
@@ -49,13 +168,9 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 		}
 	}
 
-	thisReset := ds.Reset(resets[0])
 	for _, p := range agents {
-		creditHist := ds.GetAgentRecordsCredits(thisReset, p, dur)
+		creditHist := agentRecordsCredits(history, p, dur)
 		creditItems := make([]opts.LineData, 0, targetDataPoints*2)
-		sort.Slice(creditHist, func(i, j int) bool {
-			return creditHist[i].Timestamp < creditHist[j].Timestamp
-		})
 		for i, r := range creditHist {
 			if i%stride == 0 {
 				creditItems = append(creditItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
@@ -69,7 +184,7 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 	return line
 }
 
-func ShipChart(agents []string, dur time.Duration, title string) *charts.Line {
+func ShipChart(agents []string, history []ds.AgentStatus, dur time.Duration, title string) *charts.Line {
 	line := charts.NewLine()
 	line.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
@@ -105,13 +220,9 @@ func ShipChart(agents []string, dur time.Duration, title string) *charts.Line {
 		}
 	}
 
-	thisReset := ds.Reset(resets[0])
 	for _, p := range agents {
-		shipHist := ds.GetAgentRecordsShips(thisReset, p, dur)
+		shipHist := agentRecordsShips(history, p, dur)
 		shipItems := make([]opts.LineData, 0, targetDataPoints*2)
-		sort.Slice(shipHist, func(i, j int) bool {
-			return shipHist[i].Timestamp < shipHist[j].Timestamp
-		})
 		for i, r := range shipHist {
 			if i%stride == 0 {
 				shipItems = append(shipItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
@@ -153,9 +264,6 @@ func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration
 	for jg, recs := range data {
 		fabItems := make([]opts.LineData, 0)
 		advItems := make([]opts.LineData, 0)
-		sort.Slice(recs, func(i, j int) bool {
-			return recs[i].Timestamp < recs[j].Timestamp
-		})
 		for _, r := range recs {
 			fabItems = append(fabItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Fabmat}})
 			advItems = append(advItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Advcct}})
@@ -197,8 +305,9 @@ func ConstructionParallelChart(rows []ConstructionParallelRow) *charts.Parallel 
 	parallel := charts.NewParallel()
 	parallel.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
-			Theme: "dark",
-			Width: "100%",
+			Theme:  "dark",
+			Width:  "100%",
+			Height: "150%",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title: "Jumpgate Construction by Agent",

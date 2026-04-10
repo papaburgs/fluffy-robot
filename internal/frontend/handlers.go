@@ -35,12 +35,13 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	storageAgents := q.Get("storageAgents")
 	paramAgents := q.Get("paramAgents")
 
-	agents := mergeAgents(storageAgents, paramAgents)
+	chartAgents := mergeAgents(storageAgents, paramAgents)
 
 	pageData := ChartPageData{}
 
 	period := q.Get("period")
 	var duration time.Duration
+	var startTime int64
 	var creditChart *charts.Line
 	var shipChart *charts.Line
 	logging.Info("Incoming request", "endpoint", "chart", "period", period)
@@ -59,8 +60,21 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 		duration = 1 * time.Hour
 		title = "Last Hour"
 	}
-	creditChart = CreditChart(agents, duration, title)
-	shipChart = ShipChart(agents, duration, title)
+	startTime = time.Now().Add(-1 * duration).Unix()
+
+	thisReset := ds.Reset(resets[0])
+
+	agentHist, _ := ds.GetAgentHistory(thisReset, startTime, 0)
+	jgList, _ := ds.GetJumpgateList(thisReset)
+	constrList, _ := ds.GetConstructions(thisReset, startTime, 0)
+
+	agentsLookup := make(map[string]ds.Agent)
+	aList, _ := ds.GetAgentList(thisReset)
+	agentsLookup = agentsMap(aList)
+	jgLookup := jumpgatesMap(jgList)
+
+	creditChart = CreditChart(chartAgents, agentHist, duration, title)
+	shipChart = ShipChart(chartAgents, agentHist, duration, title)
 
 	if creditChart != nil {
 		snippet := creditChart.RenderSnippet()
@@ -78,12 +92,11 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	thisReset := ds.Reset(resets[0])
-	overview := ds.GetLatestConstructionRecords(thisReset, agents)
+	overview := latestConstructionRecords(agentsLookup, jgLookup, constrList, chartAgents)
 	pageData.ConstructionTable = overview
 	overview = nil
 
-	recs := ds.GetConstructionRecords(thisReset, agents, duration)
+	recs := constructionRecords(agentsLookup, jgLookup, constrList, chartAgents)
 	constChart := JumpgateConstructionChart(recs, duration)
 	if constChart != nil {
 		snippet := constChart.RenderSnippet()
@@ -94,6 +107,11 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	recs = nil
 
+	agentHist = nil
+	aList = nil
+	jgList = nil
+	constrList = nil
+
 	w.Header().Set("Content-Type", "text/html")
 	if err := RenderChartFragment(w, pageData); err != nil {
 		logging.Error("template error", err)
@@ -103,7 +121,11 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 func PermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	agents := ds.GetAgents(ds.Reset(resets[0]))
+	aList, err := ds.GetAgentList(ds.Reset(resets[0]))
+	if err != nil {
+		logging.Error("error loading agents", err)
+	}
+	agents := agentsMap(aList)
 
 	if err := t.ExecuteTemplate(w, "permissions.html", map[string]interface{}{
 		"Agents": agents,
@@ -111,6 +133,7 @@ func PermissionsHandler(w http.ResponseWriter, r *http.Request) {
 		logging.Error("template error", err)
 	}
 	agents = nil
+	aList = nil
 	metrics.RecordDuration("permissions", start)
 }
 
@@ -184,6 +207,12 @@ func ExportHandler(w http.ResponseWriter, r *http.Request) {
 
 func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
+	aList, err := ds.GetAgentList(ds.LatestReset())
+	if err != nil {
+		logging.Error("error loading agents", err)
+	}
+	agents := agentsMap(aList)
+
 	type data struct {
 		Name      string
 		Credits   int64
@@ -191,7 +220,6 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 		IsChecked bool
 	}
 	d := []data{}
-	agents := ds.GetAgents(ds.LatestReset())
 	q := r.URL.Query()
 	searchStr := strings.ToLower(q.Get("agentSearch"))
 	hideInactive := q.Get("hideInactive") == "on"
@@ -233,6 +261,7 @@ func PermissionsGridHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	agents = nil
+	aList = nil
 	storageAgentsMap = nil
 
 	if err := t.ExecuteTemplate(w, "permissions-grid.html", d); err != nil {
@@ -292,21 +321,25 @@ func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	thisReset := ds.LatestReset()
 
-	agents := ds.GetAgents(thisReset)
-	jumpgates := ds.GetJumpgates(thisReset)
+	aList, _ := ds.GetAgentList(thisReset)
+	jgList, _ := ds.GetJumpgateList(thisReset)
+	constrList, _ := ds.GetConstructions(thisReset, 0, 0)
 
-	allNames := make([]string, 0, len(agents))
-	for name := range agents {
+	agentsLookup := agentsMap(aList)
+	jumpgates := jumpgatesMap(jgList)
+
+	allNames := make([]string, 0, len(agentsLookup))
+	for name := range agentsLookup {
 		allNames = append(allNames, name)
 	}
-	construction := ds.GetLatestConstructionRecords(thisReset, allNames)
+	construction := latestConstructionRecords(agentsLookup, jumpgates, constrList, allNames)
 	constructMap := make(map[string]ds.ConstructionOverview, len(construction))
 	for _, c := range construction {
 		constructMap[c.Agent] = c
 	}
 
 	rows := []ConstructionParallelRow{}
-	for name, a := range agents {
+	for name, a := range agentsLookup {
 		jg, ok := jumpgates[a.System]
 		if !ok || jg.Status == ds.NoActivity {
 			continue
@@ -323,7 +356,10 @@ func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	agents = nil
+	aList = nil
+	jgList = nil
+	constrList = nil
+	agentsLookup = nil
 	jumpgates = nil
 	construction = nil
 	constructMap = nil
@@ -391,9 +427,9 @@ func AgentsHandler(w http.ResponseWriter, r *http.Request) {
 	for _, fi := range factionMap {
 		uniqueFactions[fi.Symbol] = fi
 	}
-	agents := ds.GetAgents(thisReset)
+	aList, _ := ds.GetAgentList(thisReset)
 	systemSet := make(map[string]bool)
-	for _, a := range agents {
+	for _, a := range aList {
 		systemSet[a.System] = true
 	}
 	systemList := make([]string, 0, len(systemSet))
@@ -401,7 +437,7 @@ func AgentsHandler(w http.ResponseWriter, r *http.Request) {
 		systemList = append(systemList, s)
 	}
 	sort.Strings(systemList)
-	agents = nil
+	aList = nil
 
 	if err := t.ExecuteTemplate(w, "agents.html", map[string]interface{}{
 		"Factions": uniqueFactions,
@@ -416,22 +452,27 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	thisReset := ds.LatestReset()
 
-	agents := ds.GetAgents(thisReset)
-	ships := ds.GetLatestShipsForAgents(thisReset)
-	jumpgates := ds.GetJumpgates(thisReset)
+	aList, _ := ds.GetAgentList(thisReset)
+	agentHist, _ := ds.GetAgentHistory(thisReset, 0, 0)
+	jgList, _ := ds.GetJumpgateList(thisReset)
+	constrList, _ := ds.GetConstructions(thisReset, 0, 0)
 
-	allNames := make([]string, 0, len(agents))
-	for name := range agents {
+	agentsLookup := agentsMap(aList)
+	ships := latestShips(agentHist)
+	jumpgates := jumpgatesMap(jgList)
+
+	allNames := make([]string, 0, len(agentsLookup))
+	for name := range agentsLookup {
 		allNames = append(allNames, name)
 	}
-	construction := ds.GetLatestConstructionRecords(thisReset, allNames)
+	construction := latestConstructionRecords(agentsLookup, jumpgates, constrList, allNames)
 	constructMap := make(map[string]ds.ConstructionOverview, len(construction))
 	for _, c := range construction {
 		constructMap[c.Agent] = c
 	}
 
 	systemCount := make(map[string]int)
-	for _, a := range agents {
+	for _, a := range aList {
 		systemCount[a.System]++
 	}
 
@@ -451,7 +492,7 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 	showConstructionOnly := q.Get("showConstruction") == "on"
 
 	rows := []AgentRow{}
-	for name, a := range agents {
+	for name, a := range agentsLookup {
 		if searchStr != "" && !strings.Contains(strings.ToLower(name), searchStr) {
 			continue
 		}
@@ -465,21 +506,9 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 
-		var constructStr string
-		var hasConstruct bool
+		constructStr, hasConstruct := "\u2014", false
 		if co, ok := constructMap[name]; ok {
-			jg := jumpgates[a.System]
-			if jg.Status == ds.Complete {
-				constructStr = "Complete"
-				hasConstruct = true
-			} else if co.Fabmat > 0 || co.Advcct > 0 {
-				constructStr = fmt.Sprintf("%d/1600 FB, %d/400 AC", co.Fabmat, co.Advcct)
-				hasConstruct = true
-			} else {
-				constructStr = "\u2014"
-			}
-		} else {
-			constructStr = "\u2014"
+			constructStr, hasConstruct = constructionString(co, jumpgates[a.System])
 		}
 
 		if showConstructionOnly && !hasConstruct {
@@ -527,7 +556,11 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 		return rows[i].Symbol < rows[j].Symbol
 	})
 
-	agents = nil
+	aList = nil
+	agentHist = nil
+	jgList = nil
+	constrList = nil
+	agentsLookup = nil
 	ships = nil
 	jumpgates = nil
 	construction = nil

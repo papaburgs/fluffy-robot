@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"encoding/gob"
+	"sort"
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/logging"
@@ -11,7 +12,10 @@ func UpdateJumpGates(jgList []JGInfo) {
 	writeData("jumpgates", 0, jgList)
 }
 
-func GetConstructions(thisReset Reset) ([]JGConstruction, error) {
+func GetConstructions(thisReset Reset, start, end int64) ([]JGConstruction, error) {
+	if end == 0 {
+		end = time.Now().Unix()
+	}
 	res := []JGConstruction{}
 	m, err := readData("construction-", thisReset)
 	if err != nil {
@@ -23,10 +27,17 @@ func GetConstructions(thisReset Reset) ([]JGConstruction, error) {
 		if err := gobDec.Decode(&v); err != nil {
 			return res, err
 		}
-		res = append(res, v...)
+		for _, r := range v {
+			if r.Timestamp >= start && r.Timestamp <= end {
+				res = append(res, r)
+			}
+		}
 		v = nil
 	}
 	m = nil
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Timestamp < res[j].Timestamp
+	})
 	return res, nil
 }
 
@@ -159,63 +170,4 @@ type ConstructionRecord struct {
 	Timestamp int64
 	Fabmat    int
 	Advcct    int
-}
-
-func GetConstructionRecords(thisReset Reset, agents []string, dur time.Duration) map[string][]ConstructionRecord {
-	agentRecords := GetAgents(thisReset)
-	jumpGates := GetJumpgates(thisReset)
-	constructions, _ := GetConstructions(thisReset)
-	res := make(map[string][]ConstructionRecord)
-	for _, a := range agents {
-		thisAgent := agentRecords[a]
-		thisJumpgate := jumpGates[thisAgent.System]
-		for _, rec := range constructions {
-			if rec.Jumpgate == thisJumpgate.Jumpgate {
-				res[a] = append(res[a], ConstructionRecord{
-					Timestamp: rec.Timestamp,
-					Fabmat:    rec.Fabmat,
-					Advcct:    rec.Advcct,
-				})
-			}
-		}
-	}
-	agentRecords = nil
-	jumpGates = nil
-	constructions = nil
-	return res
-}
-
-func GetLatestConstructionRecords(thisReset Reset, agents []string) []ConstructionOverview {
-	agentRecords := GetAgents(thisReset)
-	jumpGates := GetJumpgates(thisReset)
-	constructions, _ := GetConstructions(thisReset)
-
-	res := []ConstructionOverview{}
-	for _, a := range agents {
-		jgLatest := JGConstruction{}
-		thisAgent := agentRecords[a]
-		thisJumpgate := jumpGates[thisAgent.System]
-		for _, rec := range constructions {
-			if rec.Jumpgate != thisJumpgate.Jumpgate {
-				continue
-			}
-			if rec.Timestamp > jgLatest.Timestamp {
-				jgLatest = rec
-			}
-		}
-		if jgLatest.Timestamp == 0 {
-			jgLatest.Timestamp = time.Now().Unix()
-		}
-		res = append(res, ConstructionOverview{
-			Agent:     a,
-			Jumpgate:  thisJumpgate.Jumpgate,
-			Fabmat:    jgLatest.Fabmat,
-			Advcct:    jgLatest.Advcct,
-			Timestamp: time.Unix(jgLatest.Timestamp, 0).UTC(),
-		})
-	}
-	agentRecords = nil
-	jumpGates = nil
-	constructions = nil
-	return res
 }
