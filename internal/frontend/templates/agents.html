@@ -1,6 +1,51 @@
 <div class="agents-container" hx-vals='js:{storageAgents: getStoredAgentsForHxVals(), myAgent: getMyAgentForHxVals()}' hx-trigger="refresh-vals from:body">
     <h2>Agents</h2>
 
+    <script>
+        function getCurrentSystemFilter() {
+            var el = document.getElementById('system-filter-data');
+            return el ? el.value : '';
+        }
+
+        function setSystemFilter(system) {
+            var btn = document.getElementById('system-filter-btn');
+            var data = document.getElementById('system-filter-data');
+            data.value = system;
+            btn.innerHTML = system + ' <span class="system-active-filter">[Show All]</span>';
+            htmx.ajax('GET', '/agents-grid', {
+                target: '#agents-grid',
+                values: buildFilterValues(system)
+            });
+        }
+
+        function setFactionFilter(faction) {
+            var sel = document.querySelector('[name=faction]');
+            sel.value = faction;
+            htmx.trigger(sel, 'change');
+        }
+
+        function clearSystemFilter() {
+            var btn = document.getElementById('system-filter-btn');
+            var data = document.getElementById('system-filter-data');
+            data.value = '';
+            btn.innerHTML = 'All Systems';
+        }
+
+        function buildFilterValues(system) {
+            return {
+                agentSearch: document.querySelector('[name=agentSearch]').value,
+                hideInactive: document.querySelector('[name=hideInactive]').checked ? 'on' : '',
+                sortBy: document.querySelector('[name=sortBy]').value,
+                faction: document.querySelector('[name=faction]').value,
+                showConstruction: document.querySelector('[name=showConstruction]').checked ? 'on' : '',
+                system: system !== undefined ? system : getCurrentSystemFilter(),
+                storageAgents: getStoredAgentsForHxVals(),
+                myAgent: getMyAgentForHxVals()
+            };
+        }
+    </script>
+    <input type="hidden" id="system-filter-data" name="system" value="">
+
     <div class="controls-container">
         <div class="search-box">
             <input class="search-input" type="search"
@@ -9,7 +54,7 @@
                    hx-get="/agents-grid"
                    hx-trigger="input changed delay:500ms, keyup[key=='Enter'], load"
                    hx-target="#agents-grid"
-                   hx-include="[name='hideInactive'], [name='sortBy'], [name='faction'], [name='system'], [name='showConstruction']">
+                   hx-include="[name='hideInactive'], [name='sortBy'], [name='faction'], [name='showConstruction'], #system-filter-data">
         </div>
 
         <div class="filter-options">
@@ -17,7 +62,7 @@
                 <input type="checkbox" name="hideInactive"
                        hx-get="/agents-grid"
                        hx-target="#agents-grid"
-                       hx-include="[name='agentSearch'], [name='sortBy'], [name='faction'], [name='system'], [name='showConstruction']">
+                       hx-include="[name='agentSearch'], [name='sortBy'], [name='faction'], [name='showConstruction'], #system-filter-data">
                 Hide Inactive
             </label>
 
@@ -26,7 +71,7 @@
                 <select name="sortBy"
                         hx-get="/agents-grid"
                         hx-target="#agents-grid"
-                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='faction'], [name='system'], [name='showConstruction']">
+                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='faction'], [name='showConstruction'], #system-filter-data">
                     <option value="name">Name</option>
                     <option value="credits">Credits</option>
                     <option value="ships">Ships</option>
@@ -38,7 +83,7 @@
                 <select name="faction"
                         hx-get="/agents-grid"
                         hx-target="#agents-grid"
-                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='system'], [name='showConstruction']">
+                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='showConstruction'], #system-filter-data">
                     <option value="">All</option>
                     {{range $sym, $fi := .Factions}}
                     <option value="{{$sym}}">{{$fi.Name}}</option>
@@ -46,24 +91,19 @@
                 </select>
             </label>
 
-            <label class="select-label">
-                System:
-                <select name="system"
-                        hx-get="/agents-grid"
-                        hx-target="#agents-grid"
-                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='faction'], [name='showConstruction']">
-                    <option value="">All</option>
-                    {{range $sys := .Systems}}
-                    <option value="{{$sys}}">{{$sys}}</option>
-                    {{end}}
-                </select>
-            </label>
+            <button id="system-filter-btn" class="system-reset-btn"
+                    hx-get="/agents-grid"
+                    hx-target="#agents-grid"
+                    hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='faction'], [name='showConstruction']"
+                    hx-vals='js:{system: ""}'>
+                All Systems
+            </button>
 
             <label class="checkbox-label">
                 <input type="checkbox" name="showConstruction"
                        hx-get="/agents-grid"
                        hx-target="#agents-grid"
-                       hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='faction'], [name='system']">
+                       hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='faction'], #system-filter-data">
                 Only Construction
             </label>
         </div>
@@ -71,6 +111,7 @@
 
     <div id="agents-grid" class="agents-grid"
          hx-get="/agents-grid"
-         hx-trigger="load delay:10ms">
+         hx-trigger="load delay:10ms"
+         hx-include="#system-filter-data">
     </div>
 </div>

@@ -12,15 +12,15 @@
         </button>
 
         <button class="faction-pill" style="background-color: {{.FactionColor}}"
-                onclick="document.querySelector('[name=faction]').value='{{.Faction}}'; htmx.trigger(document.querySelector('[name=faction]'), 'change');"
+                onclick="setFactionFilter('{{.Faction}}')"
                 title="{{.FactionName}}">
             {{.Faction}}
         </button>
 
         <button class="system-btn"
-                onclick="document.querySelector('[name=system]').value='{{.System}}'; htmx.trigger(document.querySelector('[name=system]'), 'change');">
+                onclick="setSystemFilter('{{.System}}')">
             {{.System}}
-            {{if gt .SystemCount 1}}<span class="system-multi"></span>{{end}}
+            {{if .MultiSystem}}<span class="system-multi"></span>{{end}}
         </button>
 
         <span class="agent-ships">{{.Ships}} <small>ships</small></span>

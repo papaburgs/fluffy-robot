@@ -318,6 +318,7 @@ type AgentRow struct {
 	FactionName   string
 	Construction  string
 	SystemCount   int
+	MultiSystem   bool
 	IsChecked     bool
 	ShowConstruct bool
 }
@@ -331,15 +332,20 @@ func AgentsHandler(w http.ResponseWriter, r *http.Request) {
 		uniqueFactions[fi.Symbol] = fi
 	}
 	agents := ds.GetAgents(thisReset)
-	uniqueSystems := make(map[string]bool)
+	systemSet := make(map[string]bool)
 	for _, a := range agents {
-		uniqueSystems[a.System] = true
+		systemSet[a.System] = true
 	}
+	systemList := make([]string, 0, len(systemSet))
+	for s := range systemSet {
+		systemList = append(systemList, s)
+	}
+	sort.Strings(systemList)
 	agents = nil
 
 	if err := t.ExecuteTemplate(w, "agents.html", map[string]interface{}{
 		"Factions": uniqueFactions,
-		"Systems":  uniqueSystems,
+		"Systems":  systemList,
 	}); err != nil {
 		logging.Error("template error", err)
 	}
@@ -439,6 +445,7 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 			FactionName:   factionName,
 			Construction:  constructStr,
 			SystemCount:   systemCount[a.System],
+			MultiSystem:   systemCount[a.System] > 1,
 			IsChecked:     storageAgentsMap[name],
 			ShowConstruct: hasConstruct,
 		})
