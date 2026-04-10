@@ -1,7 +1,6 @@
 package frontend
 
 import (
-	"fmt"
 	"html/template"
 	"io"
 	"sort"
@@ -42,7 +41,6 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 	collectionTime := 5
 	dpPerHour := 60 / collectionTime
 	estimatedTotal := int(dur.Hours()) * dpPerHour
-	fmt.Println("estimatedtotal ", estimatedTotal)
 	stride := 1
 	if estimatedTotal > targetDataPoints {
 		stride = estimatedTotal / targetDataPoints
@@ -50,7 +48,6 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 			stride = 1
 		}
 	}
-	fmt.Println("stride ", stride)
 
 	thisReset := ds.Reset(resets[0])
 	for _, p := range agents {
@@ -61,10 +58,7 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 		})
 		for i, r := range creditHist {
 			if i%stride == 0 {
-				fmt.Println("adding stride")
 				creditItems = append(creditItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
-			} else {
-				fmt.Println("skip stride")
 			}
 		}
 		line.AddSeries(p, creditItems)
