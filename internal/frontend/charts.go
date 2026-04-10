@@ -1,6 +1,7 @@
 package frontend
 
 import (
+	"fmt"
 	"html/template"
 	"io"
 	"sort"
@@ -11,7 +12,7 @@ import (
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 )
 
-const targetDataPoints int = 150
+const targetDataPoints int = 50
 
 func CreditChart(agents []string, dur time.Duration, title string) *charts.Line {
 	line := charts.NewLine()
@@ -38,11 +39,67 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 			Trigger: "axis",
 		}),
 	)
-	line.ExtendYAxis(opts.YAxis{
-		Min:      0,
-		Position: "left",
-		Name:     "Ships",
-	})
+	collectionTime := 5
+	dpPerHour := 60 / collectionTime
+	estimatedTotal := int(dur.Hours()) * dpPerHour
+	fmt.Println("estimatedtotal ", estimatedTotal)
+	stride := 1
+	if estimatedTotal > targetDataPoints {
+		stride = estimatedTotal / targetDataPoints
+		if stride < 1 {
+			stride = 1
+		}
+	}
+	fmt.Println("stride ", stride)
+
+	thisReset := ds.Reset(resets[0])
+	for _, p := range agents {
+		creditHist := ds.GetAgentRecordsCredits(thisReset, p, dur)
+		creditItems := make([]opts.LineData, 0, targetDataPoints*2)
+		sort.Slice(creditHist, func(i, j int) bool {
+			return creditHist[i].Timestamp < creditHist[j].Timestamp
+		})
+		for i, r := range creditHist {
+			if i%stride == 0 {
+				fmt.Println("adding stride")
+				creditItems = append(creditItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
+			} else {
+				fmt.Println("skip stride")
+			}
+		}
+		line.AddSeries(p, creditItems)
+
+		creditHist = nil
+	}
+
+	return line
+}
+
+func ShipChart(agents []string, dur time.Duration, title string) *charts.Line {
+	line := charts.NewLine()
+	line.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+			Width: "100%",
+		}),
+		charts.WithTitleOpts(opts.Title{
+			Title: title,
+		}),
+		charts.WithYAxisOpts(opts.YAxis{
+			Min:      0,
+			Position: "right",
+			Name:     "Ships",
+		}),
+		charts.WithXAxisOpts(opts.XAxis{
+			Type: "time",
+			Min:  time.Now().Add(-1 * dur).UnixMilli(),
+			Max:  time.Now().UnixMilli(),
+		}),
+		charts.WithTooltipOpts(opts.Tooltip{
+			Show:    opts.Bool(true),
+			Trigger: "axis",
+		}),
+	)
 	collectionTime := 5
 	dpPerHour := 60 / collectionTime
 	estimatedTotal := int(dur.Hours()) * dpPerHour
@@ -56,18 +113,6 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 
 	thisReset := ds.Reset(resets[0])
 	for _, p := range agents {
-		creditHist := ds.GetAgentRecordsCredits(thisReset, p, dur)
-		creditItems := make([]opts.LineData, 0, targetDataPoints*2)
-		sort.Slice(creditHist, func(i, j int) bool {
-			return creditHist[i].Timestamp < creditHist[j].Timestamp
-		})
-		for i, r := range creditHist {
-			if i%stride == 0 {
-				creditItems = append(creditItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
-			}
-		}
-		line.AddSeries(p+" (Credits)", creditItems)
-
 		shipHist := ds.GetAgentRecordsShips(thisReset, p, dur)
 		shipItems := make([]opts.LineData, 0, targetDataPoints*2)
 		sort.Slice(shipHist, func(i, j int) bool {
@@ -78,9 +123,8 @@ func CreditChart(agents []string, dur time.Duration, title string) *charts.Line 
 				shipItems = append(shipItems, opts.LineData{Value: []interface{}{r.Timestamp * 1000, r.Value}})
 			}
 		}
-		line.AddSeries(p+" (Ships)", shipItems, charts.WithLineChartOpts(opts.LineChart{YAxisIndex: 1}))
+		line.AddSeries(p, shipItems)
 
-		creditHist = nil
 		shipHist = nil
 	}
 
@@ -198,6 +242,7 @@ type ChartSnippet struct {
 
 type ChartPageData struct {
 	CreditChart       ChartSnippet
+	ShipChart         ChartSnippet
 	ConstructionTable []ds.ConstructionOverview
 	ConstructionChart ChartSnippet
 }

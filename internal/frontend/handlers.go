@@ -42,6 +42,7 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	period := q.Get("period")
 	var duration time.Duration
 	var creditChart *charts.Line
+	var shipChart *charts.Line
 	logging.Info("Incoming request", "endpoint", "chart", "period", period)
 	title := ""
 	switch period {
@@ -59,10 +60,19 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 		title = "Last Hour"
 	}
 	creditChart = CreditChart(agents, duration, title)
+	shipChart = ShipChart(agents, duration, title)
 
 	if creditChart != nil {
 		snippet := creditChart.RenderSnippet()
 		pageData.CreditChart = ChartSnippet{
+			Element: template.HTML(snippet.Element),
+			Script:  template.HTML(snippet.Script),
+		}
+	}
+
+	if shipChart != nil {
+		snippet := shipChart.RenderSnippet()
+		pageData.ShipChart = ChartSnippet{
 			Element: template.HTML(snippet.Element),
 			Script:  template.HTML(snippet.Script),
 		}
