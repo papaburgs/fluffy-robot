@@ -1,23 +1,5 @@
-<div class="jumpgates-container">
-    <h2>Jumpgate Status</h2>
-    <table class="data-table">
-        <thead>
-            <tr>
-                <th>System</th>
-                <th>Headquarters</th>
-                <th>Jumpgate</th>
-                <th>Status</th>
-            </tr>
-        </thead>
-        <tbody>
-            {{range .}}
-            <tr class="{{if eq .Status 3}}complete{{end}}">
-                <td>{{.System}}</td>
-                <td>{{.Headquarters}}</td>
-                <td>{{.Jumpgate}}</td>
-                <td>{{constructionStatus .Status}}{{if and (eq .Status 3) .Complete}} ({{unixTime .Complete}}){{end}}</td>
-            </tr>
-            {{end}}
-        </tbody>
-    </table>
+<h2>Jumpgate Construction</h2>
+
+<div class="chart-scroll-wrapper">
+  <div>{{ .ParallelChart.Element }} {{ .ParallelChart.Script }}</div>
 </div>

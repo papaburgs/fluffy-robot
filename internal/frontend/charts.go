@@ -131,6 +131,66 @@ func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration
 	return line
 }
 
+type ConstructionParallelRow struct {
+	Agent    string
+	Jumpgate string
+	Fabmat   int
+	Advcct   int
+}
+
+func ConstructionParallelChart(rows []ConstructionParallelRow) *charts.Parallel {
+	agentSet := make(map[string]struct{}, len(rows))
+	jgSet := make(map[string]struct{}, len(rows))
+	for _, r := range rows {
+		agentSet[r.Agent] = struct{}{}
+		jgSet[r.Jumpgate] = struct{}{}
+	}
+	agents := make([]string, 0, len(agentSet))
+	for a := range agentSet {
+		agents = append(agents, a)
+	}
+	sort.Strings(agents)
+	jgs := make([]string, 0, len(jgSet))
+	for j := range jgSet {
+		jgs = append(jgs, j)
+	}
+	sort.Strings(jgs)
+
+	parallel := charts.NewParallel()
+	parallel.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme: "dark",
+			Width: "100%",
+		}),
+		charts.WithTitleOpts(opts.Title{
+			Title: "Jumpgate Construction by Agent",
+		}),
+		charts.WithParallelAxisList([]opts.ParallelAxis{
+			{Dim: 0, Name: "Agent", Type: "category", Data: agents},
+			{Dim: 1, Name: "Jumpgate", Type: "category", Data: jgs},
+			{Dim: 2, Name: "Fabmat", Type: "value", Max: 1600},
+			{Dim: 3, Name: "Adv CCT", Type: "value", Max: 400},
+		}),
+		charts.WithTooltipOpts(opts.Tooltip{
+			Show:    opts.Bool(true),
+			Trigger: "item",
+		}),
+	)
+
+	data := make([]opts.ParallelData, 0, len(rows))
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].Agent < rows[j].Agent
+	})
+	for _, r := range rows {
+		data = append(data, opts.ParallelData{
+			Value: []interface{}{r.Agent, r.Jumpgate, r.Fabmat, r.Advcct},
+		})
+	}
+	parallel.AddSeries("Construction", data)
+
+	return parallel
+}
+
 type ChartSnippet struct {
 	Element template.HTML
 	Script  template.HTML

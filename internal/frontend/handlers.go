@@ -280,11 +280,61 @@ func StatsHandler(w http.ResponseWriter, r *http.Request) {
 
 func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	gates := ds.GetJumpgates(ds.LatestReset())
-	if err := t.ExecuteTemplate(w, "jumpgates.html", gates); err != nil {
+	thisReset := ds.LatestReset()
+
+	agents := ds.GetAgents(thisReset)
+	jumpgates := ds.GetJumpgates(thisReset)
+
+	allNames := make([]string, 0, len(agents))
+	for name := range agents {
+		allNames = append(allNames, name)
+	}
+	construction := ds.GetLatestConstructionRecords(thisReset, allNames)
+	constructMap := make(map[string]ds.ConstructionOverview, len(construction))
+	for _, c := range construction {
+		constructMap[c.Agent] = c
+	}
+
+	rows := []ConstructionParallelRow{}
+	for name, a := range agents {
+		jg, ok := jumpgates[a.System]
+		if !ok || jg.Status == ds.NoActivity {
+			continue
+		}
+		co, hasConstruct := constructMap[name]
+		if !hasConstruct || (co.Fabmat == 0 && co.Advcct == 0) {
+			continue
+		}
+		rows = append(rows, ConstructionParallelRow{
+			Agent:    name,
+			Jumpgate: jg.Jumpgate,
+			Fabmat:   co.Fabmat,
+			Advcct:   co.Advcct,
+		})
+	}
+
+	agents = nil
+	jumpgates = nil
+	construction = nil
+	constructMap = nil
+
+	parallel := ConstructionParallelChart(rows)
+	rows = nil
+
+	snippet := parallel.RenderSnippet()
+	pageData := struct {
+		ParallelChart ChartSnippet
+	}{
+		ParallelChart: ChartSnippet{
+			Element: template.HTML(snippet.Element),
+			Script:  template.HTML(snippet.Script),
+		},
+	}
+
+	w.Header().Set("Content-Type", "text/html")
+	if err := t.ExecuteTemplate(w, "jumpgates.html", pageData); err != nil {
 		logging.Error("template error", err)
 	}
-	gates = nil
 	metrics.RecordDuration("jumpgates", start)
 }
 
