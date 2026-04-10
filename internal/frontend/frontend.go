@@ -71,6 +71,8 @@ func StartServer() {
 	http.HandleFunc("/status", HeaderHandler)
 	http.HandleFunc("/chart", LoadChartHandler)
 	http.HandleFunc("/permissions-grid", PermissionsGridHandler)
+	http.HandleFunc("/agents", AgentsHandler)
+	http.HandleFunc("/agents-grid", AgentsGridHandler)
 
 	http.HandleFunc("/leaderboard", LeaderboardHandler)
 	http.HandleFunc("/stats", StatsHandler)

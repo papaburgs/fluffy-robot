@@ -1,0 +1,33 @@
+{{range .Agents}}
+<div class="agent-card {{if .IsActive}}active{{else}}inactive{{end}} {{if .IsChecked}}agent-selected{{end}}"
+     style="border-left: 3px solid {{.FactionColor}}">
+    <div class="agent-card-row">
+        <button id="btn-{{.Symbol}}"
+                type="button"
+                class="agent-name-btn {{if .IsActive}}active{{else}}inactive{{end}} {{if .IsChecked}}agent-selected{{end}}"
+                onclick="toggleAgentSelection('{{.Symbol}}')"
+                title="{{if .IsActive}}Active Agent{{else}}Inactive (175k credits){{end}}">
+            {{.Symbol}}
+            <span class="status-indicator"></span>
+        </button>
+
+        <button class="faction-pill" style="background-color: {{.FactionColor}}"
+                onclick="document.querySelector('[name=faction]').value='{{.Faction}}'; htmx.trigger(document.querySelector('[name=faction]'), 'change');"
+                title="{{.FactionName}}">
+            {{.Faction}}
+        </button>
+
+        <button class="system-btn"
+                onclick="document.querySelector('[name=system]').value='{{.System}}'; htmx.trigger(document.querySelector('[name=system]'), 'change');">
+            {{.System}}
+            {{if gt .SystemCount 1}}<span class="system-multi"></span>{{end}}
+        </button>
+
+        <span class="agent-ships">{{.Ships}} <small>ships</small></span>
+        <span class="agent-credits">{{.Credits}} <small>cr</small></span>
+    </div>
+    <div class="agent-card-detail">
+        <span class="construction-status {{if .ShowConstruct}}has-construct{{end}}">{{.Construction}}</span>
+    </div>
+</div>
+{{end}}

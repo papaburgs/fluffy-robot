@@ -126,3 +126,21 @@ func GetAgents(thisReset Reset) map[string]Agent {
 	agents = nil
 	return res
 }
+
+func GetLatestShipsForAgents(thisReset Reset) map[string]int64 {
+	history, err := GetAgentHistory(thisReset)
+	if err != nil {
+		return nil
+	}
+	latest := make(map[string]int64)
+	latestTs := make(map[string]int64)
+	for _, r := range history {
+		if r.Timestamp > latestTs[r.Symbol] {
+			latestTs[r.Symbol] = r.Timestamp
+			latest[r.Symbol] = r.Ships
+		}
+	}
+	history = nil
+	latestTs = nil
+	return latest
+}

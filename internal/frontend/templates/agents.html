@@ -1,7 +1,76 @@
-<h3>Agents</h3>
-{{range .}}
-    <div>
-        <input type="checkbox" name="agent" value="{{.ID}}" id="agent-{{.ID}}">
-        <label for="agent-{{.ID}}">{{.Name}}</label>
+<div class="agents-container" hx-vals='js:{storageAgents: getStoredAgentsForHxVals(), myAgent: getMyAgentForHxVals()}' hx-trigger="refresh-vals from:body">
+    <h2>Agents</h2>
+
+    <div class="controls-container">
+        <div class="search-box">
+            <input class="search-input" type="search"
+                   name="agentSearch"
+                   placeholder="Search agents..."
+                   hx-get="/agents-grid"
+                   hx-trigger="input changed delay:500ms, keyup[key=='Enter'], load"
+                   hx-target="#agents-grid"
+                   hx-include="[name='hideInactive'], [name='sortBy'], [name='faction'], [name='system'], [name='showConstruction']">
+        </div>
+
+        <div class="filter-options">
+            <label class="checkbox-label">
+                <input type="checkbox" name="hideInactive"
+                       hx-get="/agents-grid"
+                       hx-target="#agents-grid"
+                       hx-include="[name='agentSearch'], [name='sortBy'], [name='faction'], [name='system'], [name='showConstruction']">
+                Hide Inactive
+            </label>
+
+            <label class="select-label">
+                Sort by:
+                <select name="sortBy"
+                        hx-get="/agents-grid"
+                        hx-target="#agents-grid"
+                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='faction'], [name='system'], [name='showConstruction']">
+                    <option value="name">Name</option>
+                    <option value="credits">Credits</option>
+                    <option value="ships">Ships</option>
+                </select>
+            </label>
+
+            <label class="select-label">
+                Faction:
+                <select name="faction"
+                        hx-get="/agents-grid"
+                        hx-target="#agents-grid"
+                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='system'], [name='showConstruction']">
+                    <option value="">All</option>
+                    {{range $sym, $fi := .Factions}}
+                    <option value="{{$sym}}">{{$fi.Name}}</option>
+                    {{end}}
+                </select>
+            </label>
+
+            <label class="select-label">
+                System:
+                <select name="system"
+                        hx-get="/agents-grid"
+                        hx-target="#agents-grid"
+                        hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='faction'], [name='showConstruction']">
+                    <option value="">All</option>
+                    {{range $sys := .Systems}}
+                    <option value="{{$sys}}">{{$sys}}</option>
+                    {{end}}
+                </select>
+            </label>
+
+            <label class="checkbox-label">
+                <input type="checkbox" name="showConstruction"
+                       hx-get="/agents-grid"
+                       hx-target="#agents-grid"
+                       hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='faction'], [name='system']">
+                Only Construction
+            </label>
+        </div>
     </div>
-{{end}}
+
+    <div id="agents-grid" class="agents-grid"
+         hx-get="/agents-grid"
+         hx-trigger="load delay:10ms">
+    </div>
+</div>
