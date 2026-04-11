@@ -307,7 +307,7 @@ func ConstructionParallelChart(rows []ConstructionParallelRow) *charts.Parallel 
 		charts.WithInitializationOpts(opts.Initialization{
 			Theme:  "dark",
 			Width:  "100%",
-			Height: "150%",
+			Height: "750",
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title: "Jumpgate Construction by Agent",

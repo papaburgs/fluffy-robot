@@ -71,20 +71,29 @@ func GetAgentHistory(thisReset Reset, start, end int64) ([]AgentStatus, error) {
 		return res, err
 	}
 
+	allRecords := make([]AgentStatus, 0, len(m)*2)
 	for _, b := range m {
 		gobDec := gob.NewDecoder(b)
-		v := make([]AgentStatus, len(m)*2)
+		var v []AgentStatus
 		if err := gobDec.Decode(&v); err != nil {
 			logging.Error("error decoding gob:", err)
 			return res, err
 		}
-		for _, r := range v {
-			if r.Timestamp >= start && r.Timestamp <= end {
-				res = append(res, r)
-			}
+		allRecords = append(allRecords, v...)
+	}
+
+	if len(m) > 10 {
+		go consolidate("agentsStatus", allRecords, m)
+		m = nil
+	} else {
+		m = nil
+	}
+
+	for _, r := range allRecords {
+		if r.Timestamp >= start && r.Timestamp <= end {
+			res = append(res, r)
 		}
 	}
-	m = nil
 	sort.Slice(res, func(i, j int) bool {
 		return res[i].Timestamp < res[j].Timestamp
 	})

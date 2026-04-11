@@ -21,20 +21,29 @@ func GetConstructions(thisReset Reset, start, end int64) ([]JGConstruction, erro
 	if err != nil {
 		return res, err
 	}
+
+	allRecords := make([]JGConstruction, 0, len(m)*2)
 	for _, b := range m {
 		var v []JGConstruction
 		gobDec := gob.NewDecoder(b)
 		if err := gobDec.Decode(&v); err != nil {
 			return res, err
 		}
-		for _, r := range v {
-			if r.Timestamp >= start && r.Timestamp <= end {
-				res = append(res, r)
-			}
-		}
-		v = nil
+		allRecords = append(allRecords, v...)
 	}
-	m = nil
+
+	if len(m) > 5 {
+		go consolidate("construction", allRecords, m)
+		m = nil
+	} else {
+		m = nil
+	}
+
+	for _, r := range allRecords {
+		if r.Timestamp >= start && r.Timestamp <= end {
+			res = append(res, r)
+		}
+	}
 	sort.Slice(res, func(i, j int) bool {
 		return res[i].Timestamp < res[j].Timestamp
 	})
