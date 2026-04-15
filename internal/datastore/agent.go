@@ -38,6 +38,10 @@ func StoreAgents(apiAgents []PublicAgent, now int64) {
 }
 
 func GetAgentList(thisReset Reset) ([]Agent, error) {
+	for consolidating {
+		fmt.Println("still consolidating")
+		time.Sleep(time.Second)
+	}
 	res := []Agent{}
 	m, err := readData("agents.", thisReset)
 	if err != nil {
@@ -61,6 +65,10 @@ func GetAgentList(thisReset Reset) ([]Agent, error) {
 }
 
 func GetAgentHistory(thisReset Reset, start, end int64) ([]AgentStatus, error) {
+	for consolidating {
+		fmt.Println("still consolidating")
+		time.Sleep(time.Second)
+	}
 	if end == 0 {
 		end = time.Now().Unix()
 	}
@@ -83,7 +91,9 @@ func GetAgentHistory(thisReset Reset, start, end int64) ([]AgentStatus, error) {
 	}
 
 	if len(m) > 10 {
-		go consolidate("agentsStatus", allRecords, m)
+		consolidating = true
+		consolidate("agentsStatus", allRecords, m)
+		consolidating = false
 		m = nil
 	} else {
 		m = nil

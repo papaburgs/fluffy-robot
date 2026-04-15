@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,8 @@ import (
 )
 
 func consolidate(basename string, data any, files map[string]*bytes.Buffer) {
-	ts := time.Now().Unix()
+	start := time.Now()
+	ts := start.Unix()
 	err := writeData(basename, ts, data)
 	if err != nil {
 		logging.Error("consolidate: write failed for", basename, err)
@@ -31,4 +33,5 @@ func consolidate(basename string, data any, files map[string]*bytes.Buffer) {
 			}
 		}
 	}
+	fmt.Println("Consolidate complete, took ", time.Now().Sub(start))
 }

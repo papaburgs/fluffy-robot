@@ -2,6 +2,7 @@ package datastore
 
 import (
 	"encoding/gob"
+	"fmt"
 	"sort"
 	"time"
 
@@ -12,7 +13,13 @@ func UpdateJumpGates(jgList []JGInfo) {
 	writeData("jumpgates", 0, jgList)
 }
 
+var consolidating bool
+
 func GetConstructions(thisReset Reset, start, end int64) ([]JGConstruction, error) {
+	for consolidating {
+		fmt.Println("still consolidating")
+		time.Sleep(time.Second)
+	}
 	if end == 0 {
 		end = time.Now().Unix()
 	}
@@ -33,11 +40,11 @@ func GetConstructions(thisReset Reset, start, end int64) ([]JGConstruction, erro
 	}
 
 	if len(m) > 5 {
-		go consolidate("construction", allRecords, m)
-		m = nil
-	} else {
-		m = nil
+		consolidating = true
+		consolidate("construction", allRecords, m)
+		consolidating = false
 	}
+	m = nil
 
 	for _, r := range allRecords {
 		if r.Timestamp >= start && r.Timestamp <= end {
@@ -114,6 +121,10 @@ func AddConstructions(cList []JGConstruction, ts int64) {
 }
 
 func GetJumpgates(thisReset Reset) map[string]JGInfo {
+	for consolidating {
+		fmt.Println("still consolidating")
+		time.Sleep(time.Second)
+	}
 	current, err := GetJumpgateList(currentReset)
 	if err != nil {
 		logging.Error("error loading current jumpgates")
