@@ -122,10 +122,10 @@ func readData(prefix string, thisReset Reset) (map[string]*bytes.Buffer, error) 
 				return res, err
 			}
 			defer decoder.Close()
-			b := bytes.NewBuffer([]byte{})
+			b := new(bytes.Buffer)
 			_, err = decoder.WriteTo(b)
 			if err != nil {
-				logging.Error("decode to writer error:", err)
+				logging.Error("decode to writer error:", err, " filename: ", f.Name())
 				continue
 			}
 			res[f.Name()] = b

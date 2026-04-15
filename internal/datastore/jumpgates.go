@@ -41,7 +41,7 @@ func GetConstructions(thisReset Reset, start, end int64) ([]JGConstruction, erro
 
 	if len(m) > 5 {
 		consolidating = true
-		consolidate("construction", allRecords, m)
+		// consolidate("construction", allRecords, m)
 		consolidating = false
 	}
 	m = nil

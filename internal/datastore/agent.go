@@ -92,7 +92,7 @@ func GetAgentHistory(thisReset Reset, start, end int64) ([]AgentStatus, error) {
 
 	if len(m) > 10 {
 		consolidating = true
-		consolidate("agentsStatus", allRecords, m)
+		// consolidate("agentsStatus", allRecords, m)
 		consolidating = false
 		m = nil
 	} else {
