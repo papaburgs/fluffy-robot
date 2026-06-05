@@ -384,6 +384,22 @@ tr:hover {
     align-items: center;
 }
 
+.clear-button {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #d44;
+    background: transparent;
+    color: #d44;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+}
+
+.clear-button:hover {
+    background: #d44;
+    color: #fff;
+}
+
 .checkbox-label, .select-label {
     display: flex;
     align-items: center;

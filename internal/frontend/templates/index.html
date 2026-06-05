@@ -193,6 +193,12 @@
                 console.log(`Agent ${agentName} ${newAction}ed. Stored list: ${selectedAgents.join(',')}`);
             }
 
+            function clearAgentSelections() {
+                localStorage.removeItem(AGENT_STORAGE_KEY);
+                htmx.trigger('body', 'refresh-vals');
+                htmx.trigger('#agent-grid', 'refresh');
+            }
+
             function getStoredAgentsForHxVals() {
                 // Get the string from localStorage
                 const savedAgents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
