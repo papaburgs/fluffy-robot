@@ -458,6 +458,16 @@ tr:hover {
     border-color: var(--accent-color);
 }
 
+.loading-indicator {
+    display: none;
+    color: #888;
+    font-size: 0.85rem;
+}
+
+.loading-indicator.htmx-request {
+    display: inline;
+}
+
 /* Agents Page */
 .agents-container {
     padding: 10px 0;
