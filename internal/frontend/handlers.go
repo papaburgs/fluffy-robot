@@ -23,7 +23,7 @@ func RootHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	w.Header().Set("Content-Type", "text/html")
 	logging.Info("Incoming request", "endpoint", "index")
-	if err := t.ExecuteTemplate(w, "index.html", nil); err != nil {
+	if err := t.ExecuteTemplate(w, "index.html", map[string]interface{}{"Reset": ds.LatestReset()}); err != nil {
 		logging.Error("template error", err)
 	}
 	metrics.RecordDuration("root", start)
