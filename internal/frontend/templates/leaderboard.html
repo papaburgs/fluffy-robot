@@ -1,8 +1,8 @@
 <div class="leaderboard-container">
     <h2>Leaderboard - {{if eq .Type "credits"}}Most Credits{{else}}Most Charts{{end}}</h2>
     <div class="leaderboard-controls">
-        <button class="time-button" hx-get="/leaderboard?type=credits" hx-target="#content-area">Most Credits</button>
-        <button class="time-button" hx-get="/leaderboard?type=charts" hx-target="#content-area">Most Charts</button>
+        <button class="leaderboard-tab{{if eq .Type "credits"}} leaderboard-tab-active{{end}}" hx-get="/leaderboard?type=credits" hx-target="#content-area">Most Credits</button>
+        <button class="leaderboard-tab{{if eq .Type "charts"}} leaderboard-tab-active{{end}}" hx-get="/leaderboard?type=charts" hx-target="#content-area">Most Charts</button>
     </div>
     <table class="data-table">
         <thead>

@@ -677,3 +677,33 @@ tr:hover {
         align-items: flex-start;
     }
 }
+
+.leaderboard-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.leaderboard-tab {
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #2a2a2a;
+    color: #888;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.leaderboard-tab:hover {
+    background-color: var(--hover-bg);
+    color: var(--text-color);
+    filter: brightness(1.1);
+}
+
+.leaderboard-tab.leaderboard-tab-active {
+    border-color: var(--accent-color);
+    color: var(--text-color);
+    box-shadow: 0 0 8px rgba(187, 134, 252, 0.3);
+}
