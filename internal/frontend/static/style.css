@@ -936,3 +936,32 @@ tr:hover {
     color: var(--text-color);
     box-shadow: 0 0 8px rgba(187, 134, 252, 0.3);
 }
+
+.footer-icon-link {
+    color: var(--text-color);
+    transition: color 0.2s;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 4px;
+}
+
+.footer-icon-link:hover {
+    color: var(--accent-color);
+}
+
+.footer-icon {
+    display: block;
+    flex-shrink: 0;
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
