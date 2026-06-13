@@ -8,64 +8,8 @@
         <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
         <link rel="stylesheet" href="static/style.css">
         <style>
-            /* Critical Sidebar CSS Inlined */
-            :root {
-                --sidebar-width: 250px;
-                --card-bg: #1E1E1E;
-            }
-            .sidebar {
-                width: var(--sidebar-width);
-                background-color: var(--card-bg);
-                height: 100vh;
-                position: fixed;
-                top: 0;
-                left: calc(-1 * var(--sidebar-width));
-                transition: left 0.3s ease-in-out, margin-left 0.3s ease-in-out, width 0.3s ease-in-out;
-                z-index: 1000;
-                display: flex;
-                flex-direction: column;
-                border-right: 1px solid #333;
-                overflow: hidden;
-            }
-            .sidebar.open {
-                left: 0 !important;
-            }
-            .app-container {
-                display: flex;
-                flex: 1;
-                position: relative;
-                overflow-x: hidden;
-            }
-            main {
-                flex: 1;
-                width: 100%;
-                transition: all 0.3s ease-in-out;
-            }
-            .chart-scroll-wrapper {
-                width: 100%;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-                margin-bottom: 20px;
-            }
             .chart-scroll-wrapper > div {
-                min-width: 600px; /* Ensure readability on mobile */
-            }
-            
-            /* Desktop */
-            @media (min-width: 769px) {
-                .sidebar {
-                    position: relative;
-                    left: 0 !important;
-                    margin-left: 0;
-                    min-width: 0;
-                }
-                .app-container.sidebar-collapsed .sidebar {
-                    width: 0;
-                    border-right: none;
-                }
-                #close-sidebar {
-                    display: none;
-                }
+                min-width: 600px;
             }
         </style>
     </head>
@@ -96,6 +40,7 @@
         <script>
             const AGENT_STORAGE_KEY = 'selected-agents';
             const MY_AGENT_KEY = 'my-agent';
+            const SIDEBAR_COLLAPSED_KEY = 'sidebar-collapsed';
             const CLASS_SELECTED = 'agent-selected';
             const CLASS_UNSELECTED = 'agent-unselected';
 
@@ -109,25 +54,33 @@
                 const sidebar = document.getElementById('sidebar');
                 const toggleBtn = document.getElementById('toggle-sidebar');
                 const closeBtn = document.getElementById('close-sidebar');
+                const collapseBtn = document.getElementById('sidebar-toggle');
 
-                const toggleSidebar = () => {
-                    const isMobile = window.innerWidth <= 768;
-                    console.log('Toggle sidebar clicked. isMobile:', isMobile);
-                    if (isMobile) {
-                        if (sidebar) {
-                            sidebar.classList.toggle('open');
-                            console.log('Mobile sidebar classes:', sidebar.className);
-                        }
-                    } else {
-                        if (appContainer) {
-                            appContainer.classList.toggle('sidebar-collapsed');
-                            console.log('Desktop container classes:', appContainer.className);
-                        }
+                const isMobile = () => window.innerWidth <= 768;
+
+                // Restore persisted collapsed state on desktop
+                if (!isMobile() && appContainer) {
+                    const collapsed = localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+                    if (collapsed) {
+                        appContainer.classList.add('sidebar-collapsed');
                     }
-                };
+                }
 
                 if (toggleBtn) {
-                    toggleBtn.addEventListener('click', toggleSidebar);
+                    toggleBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (sidebar) {
+                            sidebar.classList.toggle('open');
+                        }
+                    });
+                }
+
+                if (collapseBtn && appContainer) {
+                    collapseBtn.addEventListener('click', () => {
+                        appContainer.classList.toggle('sidebar-collapsed');
+                        localStorage.setItem(SIDEBAR_COLLAPSED_KEY, 
+                            appContainer.classList.contains('sidebar-collapsed'));
+                    });
                 }
 
                 if (closeBtn && sidebar) {
@@ -139,7 +92,7 @@
                 // Close sidebar when a link is clicked (on mobile)
                 if (sidebar) {
                     sidebar.addEventListener('click', (e) => {
-                        if (window.innerWidth <= 768 && e.target.closest('.nav-link')) {
+                        if (isMobile() && e.target.closest('.nav-link')) {
                             sidebar.classList.remove('open');
                         }
                     });
@@ -147,7 +100,7 @@
 
                 // Close sidebar when clicking outside on mobile
                 document.addEventListener('click', (e) => {
-                    if (window.innerWidth <= 768 && 
+                    if (isMobile() && 
                         sidebar && sidebar.classList.contains('open') &&
                         !sidebar.contains(e.target) && 
                         (!toggleBtn || !toggleBtn.contains(e.target))) {
@@ -199,10 +152,7 @@
             }
 
             function getStoredAgentsForHxVals() {
-                // Get the string from localStorage
                 const savedAgents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
-                console.log("this got called")
-                console.log(savedAgents)
                 return `${savedAgents}`;
             }
         </script>

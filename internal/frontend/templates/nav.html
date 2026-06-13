@@ -1,25 +1,54 @@
 <nav id="sidebar" class="sidebar">
     <div class="sidebar-header">
         <h3>Fluffy Robot</h3>
-        <button id="close-sidebar" class="icon-button" aria-label="Close Menu">&times;</button>
+        <div class="sidebar-header-actions">
+            <button id="sidebar-toggle" class="icon-button sidebar-collapse-toggle" aria-label="Collapse Sidebar">◀</button>
+            <button id="close-sidebar" class="icon-button" aria-label="Close Menu">&times;</button>
+        </div>
     </div>
     <div hx-vals='js:{storageAgents: getStoredAgentsForHxVals(), myAgent: getMyAgentForHxVals()}'
          hx-trigger="refresh-vals from:body">
         <ul class="nav-links">
-            <li><a href="#" hx-get="/leaderboard" hx-target="#content-area" class="nav-link">Leaderboard</a></li>
-            <li><a href="#" hx-get="/stats" hx-target="#content-area" class="nav-link">Stats</a></li>
-            <li><a href="#" hx-get="/jumpgates" hx-target="#content-area" class="nav-link">Jumpgates</a></li>
-            <li><a href="#" hx-get="/agents" hx-target="#content-area" class="nav-link">Agents</a></li>
-            
-            <li class="nav-section">Charts</li>
-            <li><a href="#" hx-get="/chart?period=1h" hx-target="#content-area" class="nav-link">Last Hour</a></li>
-            <li><a href="#" hx-get="/chart?period=4h" hx-target="#content-area" class="nav-link">Last 4 Hours</a></li>
-            <li><a href="#" hx-get="/chart?period=24h" hx-target="#content-area" class="nav-link">Last 24 Hours</a></li>
-            <li><a href="#" hx-get="/chart?period=7d" hx-target="#content-area" class="nav-link">Last 7 Days</a></li>
-            
+            <li><a href="#" hx-get="/leaderboard" hx-target="#content-area" class="nav-link" data-tooltip="Home">
+                <span class="nav-icon">⌂</span>
+                <span class="nav-label">Leaderboard</span>
+            </a></li>
+            <li><a href="#" hx-get="/stats" hx-target="#content-area" class="nav-link" data-tooltip="Stats">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Stats</span>
+            </a></li>
+            <li><a href="#" hx-get="/jumpgates" hx-target="#content-area" class="nav-link" data-tooltip="Jumpgates">
+                <span class="nav-icon">↕</span>
+                <span class="nav-label">Jumpgates</span>
+            </a></li>
+            <li><a href="#" hx-get="/agents" hx-target="#content-area" class="nav-link" data-tooltip="Agents">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Agents</span>
+            </a></li>
+            <li class="nav-section">
+                <span class="nav-icon">◷</span>
+                <span class="nav-label">Charts</span>
+            </li>
+            <li><a href="#" hx-get="/chart?period=1h" hx-target="#content-area" class="nav-link" data-tooltip="1H">
+                <span class="nav-icon">⏱</span>
+                <span class="nav-label">Last Hour</span>
+            </a></li>
+            <li><a href="#" hx-get="/chart?period=4h" hx-target="#content-area" class="nav-link" data-tooltip="4H">
+                <span class="nav-icon">◷</span>
+                <span class="nav-label">Last 4 Hours</span>
+            </a></li>
+            <li><a href="#" hx-get="/chart?period=24h" hx-target="#content-area" class="nav-link" data-tooltip="24H">
+                <span class="nav-icon">◰</span>
+                <span class="nav-label">Last 24 Hours</span>
+            </a></li>
+            <li><a href="#" hx-get="/chart?period=7d" hx-target="#content-area" class="nav-link" data-tooltip="7D">
+                <span class="nav-icon">☗</span>
+                <span class="nav-label">Last 7 Days</span>
+            </a></li>
             <li class="nav-spacer"></li>
-            <li><a href="#" hx-get="/permissions" hx-target="#content-area" class="nav-link preferences-link">
-                <span class="pref-icon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="5" x2="18" y2="5"/><line x1="2" y1="10" x2="18" y2="10"/><line x1="2" y1="15" x2="18" y2="15"/><circle cx="7" cy="5" r="2" fill="currentColor" stroke="none"/><circle cx="13" cy="10" r="2" fill="currentColor" stroke="none"/><circle cx="5" cy="15" r="2" fill="currentColor" stroke="none"/></svg></span>Preferences
+            <li><a href="#" hx-get="/permissions" hx-target="#content-area" class="nav-link preferences-link" data-tooltip="Preferences">
+                <span class="nav-icon">⚙</span>
+                <span class="nav-label">Preferences</span>
             </a></li>
         </ul>
     </div>
