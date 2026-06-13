@@ -440,8 +440,9 @@ tr:hover {
 
 .filter-options {
     display: flex;
+    flex-wrap: wrap;
     gap: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 10px;
     align-items: center;
 }
 
@@ -733,11 +734,6 @@ tr:hover {
         flex-wrap: wrap;
     }
 
-    .filter-options {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-
     #sidebar-toggle,
     #close-sidebar {
         display: none;
@@ -750,6 +746,70 @@ tr:hover {
 
     .sidebar .nav-icon {
         margin-right: 10px;
+    }
+
+    .controls-container {
+        gap: 12px;
+        margin-bottom: 14px;
+        flex-direction: column;
+    }
+
+    .search-box {
+        width: 100%;
+        flex: none;
+    }
+
+    .filter-options {
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 0;
+        width: 100%;
+    }
+
+    .checkbox-label,
+    .select-label {
+        font-size: 0.8rem;
+        gap: 4px;
+        min-width: 0;
+        flex-shrink: 1;
+    }
+
+    .select-label select {
+        padding: 6px 8px;
+        font-size: 0.8rem;
+    }
+
+    .system-reset-btn,
+    .clear-button {
+        padding: 5px 10px;
+        font-size: 0.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .controls-container {
+        gap: 8px;
+    }
+
+    .filter-options {
+        gap: 8px;
+    }
+
+    .checkbox-label,
+    .select-label {
+        font-size: 0.75rem;
+        gap: 3px;
+    }
+
+    .select-label select {
+        padding: 5px 6px;
+        font-size: 0.75rem;
+    }
+
+    .system-reset-btn,
+    .clear-button {
+        padding: 4px 8px;
+        font-size: 0.7rem;
     }
 }
 

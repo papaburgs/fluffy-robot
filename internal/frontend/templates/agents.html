@@ -78,6 +78,14 @@
                 </select>
             </label>
 
+            <label class="checkbox-label">
+                <input type="checkbox" name="showConstruction"
+                       hx-get="/agents-grid"
+                       hx-target="#agents-grid"
+                       hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='faction'], #system-filter-data">
+                Only Construction
+            </label>
+
             <label class="select-label">
                 Faction:
                 <select name="faction"
@@ -98,14 +106,6 @@
                     hx-vals='js:{system: ""}'>
                 All Systems
             </button>
-
-            <label class="checkbox-label">
-                <input type="checkbox" name="showConstruction"
-                       hx-get="/agents-grid"
-                       hx-target="#agents-grid"
-                       hx-include="[name='agentSearch'], [name='hideInactive'], [name='sortBy'], [name='faction'], #system-filter-data">
-                Only Construction
-            </label>
         </div>
     </div>
 
