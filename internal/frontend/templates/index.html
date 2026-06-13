@@ -7,11 +7,6 @@
         <script src="https://unpkg.com/htmx.org@1.9.10"></script>
         <script src="https://go-echarts.github.io/go-echarts-assets/assets/echarts.min.js"></script>
         <link rel="stylesheet" href="static/style.css">
-        <style>
-            .chart-scroll-wrapper > div {
-                min-width: 600px;
-            }
-        </style>
     </head>
     <body hx-headers='{"X-CSRF-Token": "tbd"}'>
         <div class="app-container" id="app-container">
@@ -48,6 +43,24 @@
                 return localStorage.getItem(MY_AGENT_KEY) || '';
             }
 
+            (function() {
+                var originalInit = echarts.init;
+                window.__echartsInstances__ = [];
+                echarts.init = function() {
+                    var instance = originalInit.apply(this, arguments);
+                    window.__echartsInstances__.push(instance);
+                    return instance;
+                };
+            })();
+
+            function resizeAllCharts() {
+                if (window.__echartsInstances__) {
+                    window.__echartsInstances__.forEach(function(inst) {
+                        try { inst.resize(); } catch(e) {}
+                    });
+                }
+            }
+
             // Sidebar Logic
             document.addEventListener('DOMContentLoaded', () => {
                 const appContainer = document.getElementById('app-container');
@@ -76,10 +89,20 @@
                 }
 
                 if (collapseBtn && appContainer) {
+                    const sidebar = document.getElementById('sidebar');
                     collapseBtn.addEventListener('click', () => {
                         appContainer.classList.toggle('sidebar-collapsed');
                         localStorage.setItem(SIDEBAR_COLLAPSED_KEY, 
                             appContainer.classList.contains('sidebar-collapsed'));
+                        if (sidebar) {
+                            var onEnd = function(e) {
+                                if (e.target === sidebar && e.propertyName === 'width') {
+                                    sidebar.removeEventListener('transitionend', onEnd);
+                                    resizeAllCharts();
+                                }
+                            };
+                            sidebar.addEventListener('transitionend', onEnd);
+                        }
                     });
                 }
 
@@ -155,6 +178,11 @@
                 const savedAgents = localStorage.getItem(AGENT_STORAGE_KEY) || '';
                 return `${savedAgents}`;
             }
+
+            document.addEventListener('htmx:afterSwap', function() {
+                setTimeout(resizeAllCharts, 50);
+            });
+            window.addEventListener('resize', resizeAllCharts);
         </script>
     </body>
 </html>

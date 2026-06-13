@@ -275,7 +275,8 @@ header {
 }
 
 .chart-scroll-wrapper > div {
-    min-width: 800px; /* Force a readable width on mobile to enable scrolling */
+    width: 100%;
+    min-width: 600px; /* Force a readable width on mobile to enable scrolling */
 }
 
 /* Ensure the chart inside doesn't get squashed and allows scrolling */
