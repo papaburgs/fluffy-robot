@@ -56,3 +56,14 @@ Primary: compressed Gob (`.gob.zst`). JSON opt-in via `FLUFFY_WRITE_JSON`.
 - Static files always served from disk (no embed).
 - `libsql-client-go` is in `go.mod` but not referenced in code — likely vestigial, do not add new uses.
 - `stretchr/testify` is an indirect dependency; only `internal/gate` has tests.
+
+
+## Git
+- when making changes, only apply to worktrees
+- origin remote is an internal forgejo repo, use this one exclusivly
+  - github repo is for deployments only, you are not allowed to use that
+- worktrees are made in .worktree which is in gitignore
+- you can commit in worktrees, push to 'origin', and make pull requests there
+- do not push, pull, or make PRs against the 'deploy' remote
+- do not commit directly against main, that is a protected branch
+

@@ -4,3 +4,10 @@
 
 *.json
 *.gob.zst
+
+local/
+.worktrees/
+
+.cinch/
+bin/
+.envrc
