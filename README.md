@@ -22,8 +22,10 @@ This application collects and displays:
 ```
 
 - **Collector**: Gathers data from the SpaceTraders public API on scheduled intervals
-- **Datastore**: Stores and caches collected data with automatic cleanup
+- **Datastore**: Stores collected data as per-reset files on disk; read from disk on every request (no cache layer)
 - **Frontend**: HTTP server serving the dashboard UI
+
+See [docs/INTERNAL.md](docs/INTERNAL.md) for the full developer guide. The app is deployed as a single container on Railway; **the primary design goal is low memory**.
 
 ## Quick Start
 
@@ -34,9 +36,10 @@ go run main.go
 # Configuration via environment variables
 FLUFFY_PORT=8845                    # HTTP server port (default: 8845)
 FLUFFY_STORAGE_PATH=./data          # Data storage directory
-FLUFFY_CACHE_DURATION=5m            # Cache lifetime
-FLUFFY_GATE_BUCKET_SIZE=20          # Rate limit bucket size
-FLUFFY_STATIC_DEV=yes               # Use external static files (dev mode)
+FLUFFY_GATE_BUCKET_SIZE=20          # Rate limit bucket size (per-minute)
+FLUFFY_TEMPLATE_DIR=internal/frontend  # Directory containing templates/ (optional)
+FLUFFY_STATIC_DIR=internal/frontend    # Directory containing static/ (optional)
+FLUFFY_WRITE_JSON=yes               # Also write JSON alongside .gob.zst (optional)
 ```
 
 ## Data Storage
@@ -45,6 +48,6 @@ The datastore saves data in two formats:
 - **Compressed Gob** (`.gob.zst`) - Primary format, memory efficient
 - **JSON** (`.json`) - Optional, enabled via `FLUFFY_WRITE_JSON=yes`
 
-Data is organized by reset date with automatic cleanup of stale data.
+Data is organized by reset date: latest snapshots are overwritten each cycle, history files (agent status, construction progress) are timestamped appends. There is no automatic cleanup.
 
 
