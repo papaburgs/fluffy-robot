@@ -4,3 +4,6 @@
 
 *.json
 *.gob.zst
+
+local/
+.worktrees/

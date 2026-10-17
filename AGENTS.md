@@ -2,6 +2,8 @@
 
 Go dashboard for the SpaceTraders public API. No auth token needed.
 
+**Primary goal: lean on memory.** The app runs as a single container on Railway, where RAM is the dominant cost (CPU is light except during ingestion). Optimize for RAM before anything else.
+
 ## Commands
 
 - **Run:** `go run main.go`
@@ -56,3 +58,18 @@ Primary: compressed Gob (`.gob.zst`). JSON opt-in via `FLUFFY_WRITE_JSON`.
 - Static files always served from disk (no embed).
 - `libsql-client-go` is in `go.mod` but not referenced in code — likely vestigial, do not add new uses.
 - `stretchr/testify` is an indirect dependency; only `internal/gate` has tests.
+- Factions collection is dead code: `collector.updateFactionss` (sic) is never called, so no faction files are ever written. `datastore.GetFactions` and the `factions` prefix dispatch are unused, and `tools/decoder` has no `factions` case.
+- Planned structural change: replace the file-based datastore with a SQLite backend (motivation: memory pressure, see INTERNAL.md "Known issues"); tracked on the origin forgejo.
+
+## Git
+- when making changes, only apply to worktrees
+- origin remote is an internal forgejo repo, use this one exclusively
+  - github repo is for deployments only, you are not allowed to use that
+- worktrees are made in `.worktrees/` which is in gitignore
+- you can commit in worktrees, push to 'origin', and make pull requests there
+- do not push, pull, or make PRs against the 'deploy' remote
+- do not commit directly against main, that is a protected branch
+
+## Issues
+- the forgejo repo ('origin') is the source of truth for issue tracking
+- the forgejo-mcp server is available and you are allowed to use it to create and update issues there

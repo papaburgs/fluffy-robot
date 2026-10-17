@@ -27,7 +27,7 @@ RUN go mod tidy; go mod download
 RUN CGO_ENABLED=0 GOOS=linux go build -o app -ldflags "-s -w" main.go
 
 # Create the final minimal image
-# We use 'scratch' which is an empty base image, smaller footprint
+# We use 'alpine' for a small runtime image
 FROM docker.io/library/alpine:latest
 
 # Set the working directory in the final image
