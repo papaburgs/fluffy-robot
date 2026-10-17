@@ -31,7 +31,8 @@ and the allocation peak is flat regardless of how much data accumulates.
    scheduled pod bounces.
 2. Stay inside the Railway free plan (memory-dominant bill ≤ ~50¢).
 3. No missed collection cycles: per-cycle data is complete and consistent.
-4. At least one month of history retained, pruned automatically.
+4. Five full game weeks of history retained, pruned automatically at the
+   Sunday reset boundary.
 
 ## Goals
 
@@ -44,7 +45,8 @@ and the allocation peak is flat regardless of how much data accumulates.
 - Reset as a data column so cross-reset queries work (fixes #4).
 - Factions actually collected — one fetch per reset — and stored (resolves #6 as
   "collect").
-- Automatic retention pruning (35 days) — no manual cleanup.
+- Automatic retention pruning: **5 full game weeks** + the current partial week,
+  pruned once per Sunday reset — no manual cleanup.
 - Loud write failures: errors returned, logged, and counted in expvar.
 - Tests for the new datastore package.
 
@@ -94,13 +96,13 @@ Decided with the owner (conversation):
 | Driver | `modernc.org/sqlite` (pure Go, CGO-free). `libsql-client-go` is deleted (leftover from the abandoned Turso attempt). |
 | Data migration | Fresh start at the cutover; no gob import. Old `.gob.zst` directories are left untouched — owner deletes them manually. |
 | Factions | Collect: one `/factions` fetch per reset, piggybacked on the first status fetch of a new reset. |
-| Retention | At least one month of data, pruned automatically. |
+| Retention | Whole reset weeks, not a rolling cutoff: keep 5 full game weeks; delete the just-superseded 6th week once, at the Sunday 13:00 UTC reset boundary. Never delete mid-week. |
 
 My calls (owner can override any of these):
 
 | Call | Rationale |
 |------|-----------|
-| Retention window = 35 days | Always covers a month plus the current reset week. Prune runs daily, shortly after the reset-quiet period (never mid-collection). |
+| Retention = 5 full weeks, pruned on Sunday | Matches the game structure (owner: each week is a new game). The prune and VACUUM fire once, right at the reset transition, inside the quiet window while the collector's tickers are stopped — no mid-week deletes, no contention with cycle writes. |
 | `synchronous=FULL` + WAL | At this write rate (one transaction per 5 min) fsync cost is negligible, and a hard OOM kill cannot lose the last cycle. `NORMAL` risks exactly the "missed cycle" failure that matters most. |
 | One transaction per collection cycle | The 5-min agent cycle (~N hundred rows) commits atomically — partial cycles cannot exist. |
 | Normalize agents into a registry table | Symbol strings (~20 B) dominate a row if stored per-record. A global `agents` registry (INTEGER id ↔ symbol) halves series storage and gives per-agent index locality. See size math. |
@@ -113,7 +115,7 @@ My calls (owner can override any of these):
 | `tools/decoder` is deleted | Its gob types disappear with the old store. The `sqlite3` CLI against the .db file replaces it (documented in INTERNAL.md). Builder may swap this for a tiny dump tool if it keeps the repo simpler. |
 | `FLUFFY_WRITE_JSON` is removed | JSON queries are done with the `sqlite3` CLI against the .db file. |
 | `/export` serves a consistent DB snapshot | `VACUUM INTO` to a temp file, then stream it — avoids copying a torn WAL state. |
-| New env var `FLUFFY_RETENTION_DAYS` (default 35) | Retention policy without a rebuild. |
+| New env var `FLUFFY_RETENTION_WEEKS` (default 5) | Retention policy without a rebuild, in whole weeks. |
 | Schema versioning via `PRAGMA user_version` | Fresh start needs only v1, but future schema changes get a home. |
 
 ## Schema (v1)
@@ -239,9 +241,9 @@ SQLite is bigger per logical row but normalized, and the PVC is not the
 constrained resource (RAM is).
 
 Builder contingency, with owner consulted if hit: if measured size exceeds
-~250 MB for 35 days, either drop retention to 28 days or keep 5-minute
+~250 MB for the kept weeks, either drop retention to 4 weeks or keep 5-minute
 granularity for the current reset week and hourly (decimated) rows for older
-weeks. Do not silently reduce retention below one month.
+weeks. Do not silently reduce retention below 4 full weeks.
 
 ### Durability, concurrency, pragmas
 
@@ -275,12 +277,25 @@ pool; WAL permits concurrent readers with the single writer goroutine).
 
 ## Retention
 
-Daily job (piggyback on a collector ticker, after the quiet period near reset):
-`DELETE FROM agent_status WHERE timestamp < ?` (and same for `construction`,
-plus per-reset tables where `reset_date` older than cutoff). `VACUUM` runs once
-per reset transition to actually return space; on a ~150 MB DB this is a few
-seconds of I/O once a week. `FLUFFY_RETENTION_DAYS` (default 35) controls the
-cutoff. Pruning never touches the current reset.
+Retention is in **whole game weeks**, not a rolling daily cutoff — each reset
+week is a separate game. Keep **5 full reset weeks plus the in-progress week**
+(35 days of complete games on Sunday). Nothing is ever deleted mid-week.
+
+The prune runs **once per reset transition** (Sunday 13:00 UTC), triggered by
+the collector's reset detection, inside the quiet window while the tickers are
+stopped. On the transition into reset R:
+
+- series tables (`agent_status`, `construction`):
+  `DELETE … WHERE timestamp < unix(R.start − 5×7 days)` — drops exactly the
+  week that just became the 6th-oldest, plus anything older (e.g. first-boot
+  leftovers);
+- per-reset tables (`agent_snapshots`, `stats`, `leaderboards`, `jumpgates`,
+  `factions`): `DELETE … WHERE reset_date < date(R.start − 5×7 days)`.
+
+`VACUUM` runs immediately after the prune, at the same weekly moment, subject
+to the free-space guard — on a ~150 MB DB this is a few seconds of I/O, once a
+week, when nothing else is writing. `FLUFFY_RETENTION_WEEKS` (default 5)
+controls the count. The prune and VACUUM never touch the current reset.
 
 ## Observability
 
@@ -300,7 +315,9 @@ cutoff. Pruning never touches the current reset.
   agent/gate with the max timestamp.
 - Reset transition: write across a simulated reset boundary; both resets query
   correctly (the #4 fix).
-- Retention: old rows pruned, current reset untouched.
+- Retention: on a simulated reset transition, the 6th-oldest week is dropped
+  and exactly 5 full weeks + the current partial week remain; nothing is
+  deleted mid-week; the current reset is untouched.
 - Retry path: a forced write failure is retried and coalesces idempotently
   with the next cycle (`INSERT OR REPLACE` on the natural key); the drop-oldest
   bound fires with a loud log after repeated failure.
@@ -316,7 +333,8 @@ cutoff. Pruning never touches the current reset.
   `internal/datastore/types.go`; `TimedAgentRecord`/`resetAgentKey` dead types
   go away).
 - How the factions fetch is triggered off reset detection in `collector.go`.
-- Where the daily prune ticker lives and its metric wiring.
+- Where the reset-transition prune hook lives (off the collector's reset
+  detection) and its metric wiring.
 - Whether `LatestReset`/`NextReset` keep the sleep-loop or switch to a
   condition variable (behavior must not change).
 - Internal file layout of the rewritten `internal/datastore` package.
