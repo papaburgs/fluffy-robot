@@ -10,14 +10,10 @@ import (
 	"strings"
 	"time"
 
-	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
 
-var (
-	resets []string
-	t      *template.Template
-)
+var t *template.Template
 
 func StartServer() {
 	funcMap := template.FuncMap{
@@ -64,8 +60,6 @@ func StartServer() {
 		portNumber = ":" + portNumber
 	}
 
-	go updateResetLoop()
-
 	http.HandleFunc("/", RootHandler)
 	http.HandleFunc("/permissions", PermissionsHandler)
 	http.HandleFunc("/status", HeaderHandler)
@@ -84,24 +78,6 @@ func StartServer() {
 
 	logging.Info("Starting server on http://localhost on " + portNumber)
 	logging.Warn("Server Done", http.ListenAndServe(portNumber, nil))
-}
-
-func updateResetLoop() {
-	for {
-		// logging.Debug("find all resets we have data for")
-		resets = ds.AllResets()
-		// logging.Debug("find next reset")
-		nextReset := ds.NextReset()
-
-		// logging.Debug("Ready to sleep", "resets", resets, "next reset", nextReset)
-
-		sleepDuration := time.Until(nextReset) + 5*time.Minute
-		if sleepDuration < 0 {
-			sleepDuration = 5 * time.Minute
-		}
-		// logging.Debug("sleeping until next reset check", "duration", sleepDuration)
-		time.Sleep(sleepDuration)
-	}
 }
 
 func mergeAgents(args ...any) []string {

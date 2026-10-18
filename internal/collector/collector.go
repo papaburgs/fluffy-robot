@@ -150,6 +150,11 @@ func (c *Collector) loopAtReset(ctx context.Context) error {
 
 		if len(status.Leaderboards.MostSubmittedCharts) == 0 {
 			logging.Info("Credit leaderboard is empty, probably ready to go, sleep 1 more minute")
+			// The new reset has begun: drop the week that just became the
+			// 6th-oldest and vacuum, while tickers are stopped.
+			if err := ds.Prune(ds.RetentionWeeks(), ds.Reset(status.ResetDate)); err != nil {
+				logging.Error("prune failed", err)
+			}
 			time.Sleep(time.Minute)
 			return nil
 		}

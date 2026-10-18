@@ -1,14 +1,10 @@
 package frontend
 
 import (
-	"archive/tar"
-	"compress/gzip"
-	"fmt"
 	"html/template"
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -62,9 +58,9 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	startTime = time.Now().Add(-1 * duration).Unix()
 
-	thisReset := ds.Reset(resets[0])
+	thisReset := ds.LatestReset()
 
-	agentHist, _ := ds.GetAgentHistory(thisReset, startTime, 0)
+	agentHist, _ := ds.GetAgentHistory(thisReset, startTime, 0, chartAgents)
 	jgList, _ := ds.GetJumpgateList(thisReset)
 	constrList, _ := ds.GetConstructions(thisReset, startTime, 0)
 
@@ -121,7 +117,7 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 func PermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	aList, err := ds.GetAgentList(ds.Reset(resets[0]))
+	aList, err := ds.GetAgentList(ds.LatestReset())
 	if err != nil {
 		logging.Error("error loading agents", err)
 	}
@@ -151,56 +147,34 @@ func ExportHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	logging.Info("Export Handler called")
 
-	filename := "data_export.tar.gz"
-	w.Header().Set("Content-Type", "application/gzip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
-
-	gw := gzip.NewWriter(w)
-	defer gw.Close()
-	tw := tar.NewWriter(gw)
-	defer tw.Close()
-
-	srcDir := ds.DataPath()
-
-	err := filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-		if path == srcDir {
-			return nil
-		}
-
-		header, err := tar.FileInfoHeader(info, info.Name())
-		if err != nil {
-			return err
-		}
-
-		relPath, err := filepath.Rel(srcDir, path)
-		if err != nil {
-			return err
-		}
-		header.Name = relPath
-
-		if err := tw.WriteHeader(header); err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		file, err := os.Open(path)
-		if err != nil {
-			return err
-		}
-		defer file.Close()
-
-		_, err = io.Copy(tw, file)
-		return err
-	})
-
+	tmp, err := os.CreateTemp(ds.DataPath(), "export-*.db")
 	if err != nil {
+		logging.Error("export temp file", err)
 		http.Error(w, "Failed to package data", http.StatusInternalServerError)
+		return
+	}
+	tmpPath := tmp.Name()
+	_ = tmp.Close()
+	defer os.Remove(tmpPath) // snapshot, never the live DB
+
+	if err := ds.ExportDB(tmpPath); err != nil {
+		logging.Error("export failed", err)
+		http.Error(w, "Export unavailable: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	f, err := os.Open(tmpPath)
+	if err != nil {
+		logging.Error("export open snapshot", err)
+		http.Error(w, "Failed to package data", http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="fluffy.db"`)
+	if _, err := io.Copy(w, f); err != nil {
+		logging.Error("export stream", err)
 	}
 	metrics.RecordDuration("export", start)
 }
@@ -323,7 +297,7 @@ func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 
 	aList, _ := ds.GetAgentList(thisReset)
 	jgList, _ := ds.GetJumpgateList(thisReset)
-	constrList, _ := ds.GetConstructions(thisReset, 0, 0)
+	constrList := ds.LatestConstructions()
 
 	agentsLookup := agentsMap(aList)
 	jumpgates := jumpgatesMap(jgList)
@@ -453,12 +427,11 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 	thisReset := ds.LatestReset()
 
 	aList, _ := ds.GetAgentList(thisReset)
-	agentHist, _ := ds.GetAgentHistory(thisReset, 0, 0)
 	jgList, _ := ds.GetJumpgateList(thisReset)
-	constrList, _ := ds.GetConstructions(thisReset, 0, 0)
+	constrList := ds.LatestConstructions()
 
 	agentsLookup := agentsMap(aList)
-	ships := latestShips(agentHist)
+	ships := ds.LatestShips()
 	jumpgates := jumpgatesMap(jgList)
 
 	allNames := make([]string, 0, len(agentsLookup))
@@ -557,7 +530,6 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	aList = nil
-	agentHist = nil
 	jgList = nil
 	constrList = nil
 	agentsLookup = nil

@@ -8,10 +8,10 @@ Go dashboard for the SpaceTraders public API. No auth token needed.
 
 - **Run:** `go run main.go`
 - **Build:** `go build -o fluffy-robot main.go`
-- **Tests:** `go test ./...` — only `internal/gate` has tests; long-running gate tests need `GO_TEST_LONG=true go test ./internal/gate/...`
+- **Tests:** `go test ./...` — `internal/gate` and `internal/datastore` have tests; long-running gate tests need `GO_TEST_LONG=true go test ./internal/gate/...`; race-check with `go test -race ./...`
 - **Format:** `go fmt ./...`
 - **Vet:** `go vet ./...`
-- **Decode data files:** `go run tools/decoder/main.go <file.gob.zst>`
+- **Inspect the database:** `sqlite3 {FLUFFY_STORAGE_PATH}/fluffy.db` (queries, JSON via `json_group_array` etc.; no in-repo decoder needed)
 
 No CI workflows exist in this repo.
 
@@ -20,9 +20,9 @@ No CI workflows exist in this repo.
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FLUFFY_PORT` | `8845` | HTTP server port (`:` prefix auto-added if missing) |
-| `FLUFFY_STORAGE_PATH` | `./` | Data storage directory |
+| `FLUFFY_STORAGE_PATH` | `./` | Data directory; the store is a single `fluffy.db` SQLite file inside it |
 | `FLUFFY_GATE_BUCKET_SIZE` | `20` | Rate limit bucket size (t1 limit is hardcoded to 2 in `main.go`) |
-| `FLUFFY_WRITE_JSON` | no | Accepts `yes`, `y`, or `true` (case-insensitive) to enable JSON alongside `.gob.zst` |
+| `FLUFFY_RETENTION_WEEKS` | `5` | Full game weeks kept in the DB (floor 4); older weeks pruned at the Sunday reset boundary |
 | `FLUFFY_TEMPLATE_DIR` | `internal/frontend` | Directory containing `templates/` |
 | `FLUFFY_STATIC_DIR` | `internal/frontend` | Directory containing `static/` |
 | `FLUFFY_LOG_LEVEL` | info | Set `debug` or `dbg` to enable `logging.Debug()` output |
@@ -36,8 +36,8 @@ Collector ──▶ Datastore ◀── Frontend (HTTP)
 ```
 
 - **Collector** (`internal/collector/`): Gathers data on scheduled intervals (agents: 5m, jumpgates: 30m, construction: 4h). No auth token needed — all public API. Base URL is hardcoded in `main.go`: `https://api.spacetraders.io/v2`.
-- **Datastore** (`internal/datastore/`): File-based storage under `{FLUFFY_STORAGE_PATH}/{reset_date}/`. Exports raw `Get*` functions that load from disk on demand. Time-series loaders (`GetAgentHistory`, `GetConstructions`) accept `start, end int64` params to filter records; pass `0, 0` for all data. `LatestReset()` and `NextReset()` busy-wait (sleep loop) until `currentReset` is set by the collector.
-- **Frontend** (`internal/frontend/`): HTTP dashboard using `html/template` and `go-echarts/v2`. Handlers load raw data from datastore once per request, then call pure transform functions (`agentsMap`, `latestShips`, `jumpgatesMap`, `latestConstructionRecords`, etc.) defined in `charts.go`. Transform functions never touch the filesystem — they only reshape in-memory data. Intermediate lists are nil'd out for GC.
+- **Datastore** (`internal/datastore/`): Embedded **SQLite** (driver `modernc.org/sqlite` — pure Go; the build stays `CGO_ENABLED=0`). One file: `{FLUFFY_STORAGE_PATH}/fluffy.db`, one process-wide `*sql.DB`, WAL + `synchronous=FULL`. Reset is a column, not a directory. Every collection cycle is a single transaction; failed cycle writes retry with bounded backoff (1s, 2s … 32s on the six retries, ≈1 min total, 7 attempts) before being dropped loudly (`datastore_write_errors_total`). Time-series getters take `start, end` (plus an agent-set filter for `GetAgentHistory`); pass `0, 0` for all data. `LatestReset()` busy-waits until the collector's first status fetch.
+- **Frontend** (`internal/frontend/`): HTTP dashboard using `html/template` and `go-echarts/v2`. Handlers load raw data from datastore once per request, then call pure transform functions (`agentsMap`, `jumpgatesMap`, `latestConstructionRecords`, etc.) defined in `charts.go`. Transform functions never touch the filesystem — they only reshape in-memory data. Intermediate lists are nil'd out for GC.
 - **Gate** (`internal/gate/`): Rate limiter for SpaceTraders API calls. Two-tier: t1 (per-second) and t60 (per-minute) with bucket capacity.
 - **Metrics** (`internal/metrics/`): `expvar` counters at `/debug/vars`.
 - **Logging** (`internal/logging/`): `fmt.Println`-based. No `slog`.
@@ -46,20 +46,15 @@ Startup in `main.go`: `logging.InitLogger()` → `datastore.Init()` → 1s sleep
 
 ## Data Format
 
-Primary: compressed Gob (`.gob.zst`). JSON opt-in via `FLUFFY_WRITE_JSON`.
-
-`readData()` dispatches on file prefixes: `agents`, `agentsStatus`, `stats`, `leaderboard`, `jumpgates`, `construction`, `factions`.
+Primary: one SQLite database (`fluffy.db`; `modernc.org/sqlite`, WAL mode). Tables: `agents` (symbol registry), `agent_snapshots` (per-reset latest), `agent_status` / `construction` (time series, `WITHOUT ROWID`), `stats`, `leaderboards`, `jumpgates`, `factions`. The weekly retention prune (=5 weeks) runs at the Sunday 13:00 UTC reset boundary.
 
 ## Conventions
 
-- Game resets weekly; collector pauses tickers ~3 min before reset and polls until new reset appears.
-- Intermediate lists set to `nil` after use to ease GC pressure.
-- `.json` and `.gob.zst` files are gitignored.
+- Game resets weekly (Sunday ~13:00 UTC); collector pauses tickers ~3 min before reset and polls until new reset appears; the datastore prune and VACUUM run in that quiet window.
+- Factions are fetched once per reset (first status fetch of a new game).
+- Intermediate lists set to `nil` after use to ease GC pressure (frontend paths).
+- `.db` and any `.gob.zst` leftovers are gitignored.
 - Static files always served from disk (no embed).
-- `libsql-client-go` is in `go.mod` but not referenced in code — likely vestigial, do not add new uses.
-- `stretchr/testify` is an indirect dependency; only `internal/gate` has tests.
-- Factions collection is dead code: `collector.updateFactionss` (sic) is never called, so no faction files are ever written. `datastore.GetFactions` and the `factions` prefix dispatch are unused, and `tools/decoder` has no `factions` case.
-- Planned structural change: replace the file-based datastore with a SQLite backend (motivation: memory pressure, see INTERNAL.md "Known issues"); tracked on the origin forgejo.
 
 ## Git
 - when making changes, only apply to worktrees

@@ -22,7 +22,7 @@ This application collects and displays:
 ```
 
 - **Collector**: Gathers data from the SpaceTraders public API on scheduled intervals
-- **Datastore**: Stores collected data as per-reset files on disk; read from disk on every request (no cache layer)
+- **Datastore**: Embedded SQLite (`fluffy.db`); every cycle is one transaction, reads are SQL-windowed. No cache layer, no outside service.
 - **Frontend**: HTTP server serving the dashboard UI
 
 See [docs/INTERNAL.md](docs/INTERNAL.md) for the full developer guide. The app is deployed as a single container on Railway; **the primary design goal is low memory**.
@@ -35,19 +35,15 @@ go run main.go
 
 # Configuration via environment variables
 FLUFFY_PORT=8845                    # HTTP server port (default: 8845)
-FLUFFY_STORAGE_PATH=./data          # Data storage directory
+FLUFFY_STORAGE_PATH=./data          # Data directory; the store is fluffy.db inside it
 FLUFFY_GATE_BUCKET_SIZE=20          # Rate limit bucket size (per-minute)
+FLUFFY_RETENTION_WEEKS=5            # Full game weeks kept (default 5, floor 4)
 FLUFFY_TEMPLATE_DIR=internal/frontend  # Directory containing templates/ (optional)
 FLUFFY_STATIC_DIR=internal/frontend    # Directory containing static/ (optional)
-FLUFFY_WRITE_JSON=yes               # Also write JSON alongside .gob.zst (optional)
 ```
 
 ## Data Storage
 
-The datastore saves data in two formats:
-- **Compressed Gob** (`.gob.zst`) - Primary format, memory efficient
-- **JSON** (`.json`) - Optional, enabled via `FLUFFY_WRITE_JSON=yes`
-
-Data is organized by reset date: latest snapshots are overwritten each cycle, history files (agent status, construction progress) are timestamped appends. There is no automatic cleanup.
+The datastore is a single embedded SQLite database (`{FLUFFY_STORAGE_PATH}/fluffy.db`, driver `modernc.org/sqlite`, WAL mode). Reset week is a column, not a directory. Collection cycles commit as one transaction; failed writes retry with bounded backoff. Retention prunes to the last 5 full game weeks (plus the current one) automatically at the Sunday reset boundary. Inspect with `sqlite3`; `FLUFFY_WRITE_JSON` no longer exists.
 
 

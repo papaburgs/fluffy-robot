@@ -21,9 +21,14 @@ var (
 	GateBlocked     = expvar.NewInt("gate_blocked_total")
 	GateLockCount   = expvar.NewInt("gate_lock_count")
 
-	DatastoreWrites      = expvar.NewInt("datastore_write_operations_total")
-	DatastoreReads       = expvar.NewInt("datastore_read_operations_total")
-	DatastoreCacheResets = expvar.NewInt("datastore_cache_resets_total")
+	DatastoreWrites = expvar.NewInt("datastore_write_operations_total")
+	DatastoreReads  = expvar.NewInt("datastore_read_operations_total")
+
+	DatastoreWriteRetries = expvar.NewInt("datastore_write_retries_total")
+	DatastoreWriteErrors  = expvar.NewInt("datastore_write_errors_total")
+
+	DatastorePruneRows    = expvar.NewInt("datastore_prune_rows_total")
+	DatastorePruneLastRun = expvar.NewInt("datastore_prune_last_run")
 )
 
 func getOrCreateMap(name string) *expvar.Map {
