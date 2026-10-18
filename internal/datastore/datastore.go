@@ -29,6 +29,7 @@ func Init() {
 		logging.Error("Failed to create directory at", path)
 		os.Exit(1)
 	}
+
 	env, ok = os.LookupEnv("FLUFFY_WRITE_JSON")
 	if ok {
 		for _, a := range []string{"yes", "y", "true"} {
@@ -37,6 +38,13 @@ func Init() {
 			}
 		}
 	}
+
+	d, err := openDB(filepath.Join(path, "fluffy.db"))
+	if err != nil {
+		logging.Error("Failed to open sqlite db:", err)
+		os.Exit(1)
+	}
+	db = d
 
 }
 
