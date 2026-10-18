@@ -204,25 +204,42 @@ func TestGetAgentHistory_OlderReset(t *testing.T) {
 }
 
 func TestLatestShips(t *testing.T) {
-	seedTestDB(t)
+	seedTestDB(t)                  // current reset = 2026-10-05 (Sunday 13:00 UTC)
+	wed := utcTs("2026-10-08", 13) // Wednesday of the current week
 	a := pubAgents(struct {
 		sym, hf, hq string
 		cr          int64
 		sc          int
 	}{"A1", "COSMIC", "X1-YZ-123", 175000, 2})
-	if err := StoreAgents(a, 1_000_000); err != nil {
+	if err := StoreAgents(a, wed-600); err != nil {
 		t.Fatalf("StoreAgents 1: %v", err)
 	}
 	a[0].ShipCount = 7
-	if err := StoreAgents(a, 1_000_300); err != nil {
+	if err := StoreAgents(a, wed-300); err != nil {
 		t.Fatalf("StoreAgents 2: %v", err)
 	}
 	a[0].ShipCount = 4
-	if err := StoreAgents(a, 1_000_600); err != nil {
+	if err := StoreAgents(a, wed); err != nil {
 		t.Fatalf("StoreAgents 3: %v", err)
 	}
+
+	// An agent seen only in a previous week must not appear: aggregates are
+	// bounded to the current reset week (review fix #2).
+	prevWeek := utcTs("2026-09-30", 13)
+	old := pubAgents(struct {
+		sym, hf, hq string
+		cr          int64
+		sc          int
+	}{"OLD-1", "VOID", "X1-YZ-789", 999, 12})
+	if err := StoreAgents(old, prevWeek); err != nil {
+		t.Fatalf("StoreAgents old: %v", err)
+	}
+
 	ships := LatestShips()
 	if ships["A1"] != 4 {
 		t.Errorf("latest ships = %d, want 4 (max timestamp)", ships["A1"])
+	}
+	if _, ok := ships["OLD-1"]; ok {
+		t.Errorf("OLD-1 leaked from a previous week into LatestShips")
 	}
 }

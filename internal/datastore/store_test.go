@@ -81,6 +81,16 @@ func TestOpenDB_PrivilegedState(t *testing.T) {
 	if !strings.Contains(strings.ToUpper(sqlText), "WITHOUT ROWID") {
 		t.Errorf("agent_status not WITHOUT ROWID: %s", sqlText)
 	}
+
+	// Spec-verbatim types: reset_date is TEXT everywhere (agent_snapshots
+	// was INTEGER in an early draft — affinity hid it, fresh DBs only).
+	var typ string
+	if err := d.QueryRow(`SELECT type FROM pragma_table_info('agent_snapshots') WHERE name='reset_date'`).Scan(&typ); err != nil {
+		t.Fatalf("table_info: %v", err)
+	}
+	if typ != "TEXT" {
+		t.Errorf("agent_snapshots.reset_date type = %q, want TEXT", typ)
+	}
 }
 
 func TestInTx_CommitsAndRollsBack(t *testing.T) {

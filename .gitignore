@@ -4,6 +4,9 @@
 
 *.json
 *.gob.zst
+*.db
+*.db-wal
+*.db-shm
 
 local/
 .worktrees/

@@ -120,21 +120,24 @@ func TestConstructions_Window(t *testing.T) {
 }
 
 func TestLatestConstructions(t *testing.T) {
-	seedTestDB(t)
+	seedTestDB(t) // current reset = 2026-10-05
+	wed := utcTs("2026-10-08", 13)
+	prevWeek := utcTs("2026-09-30", 13)
 	if err := AddConstructions([]JGConstruction{
-		{Timestamp: 100, Jumpgate: "X1-A-J1", Fabmat: 10, Advcct: 1},
-		{Timestamp: 200, Jumpgate: "X1-A-J1", Fabmat: 20, Advcct: 2},
-		{Timestamp: 150, Jumpgate: "X1-B-J1", Fabmat: 99, Advcct: 9},
-	}, 200); err != nil {
+		{Timestamp: prevWeek - 600, Jumpgate: "OLD-J1", Fabmat: 1, Advcct: 1},
+		{Timestamp: wed - 300, Jumpgate: "X1-A-J1", Fabmat: 10, Advcct: 1},
+		{Timestamp: wed, Jumpgate: "X1-A-J1", Fabmat: 20, Advcct: 2},
+		{Timestamp: wed - 150, Jumpgate: "X1-B-J1", Fabmat: 99, Advcct: 9},
+	}, wed); err != nil {
 		t.Fatalf("AddConstructions: %v", err)
 	}
 	got := LatestConstructions()
 	if len(got) != 2 {
-		t.Fatalf("latest rows = %d, want 2 (one per gate)", len(got))
+		t.Fatalf("latest rows = %d, want 2 current-week gates (no OLD-J1)", len(got))
 	}
 	for _, r := range got {
-		if r.Jumpgate == "X1-A-J1" && (r.Timestamp != 200 || r.Fabmat != 20) {
-			t.Errorf("X1-A latest = %+v, want ts 200 fabmat 20", r)
+		if r.Jumpgate == "X1-A-J1" && (r.Timestamp != wed || r.Fabmat != 20) {
+			t.Errorf("X1-A latest = %+v, want ts %d fabmat 20", r, wed)
 		}
 		if r.Jumpgate == "X1-B-J1" && r.Fabmat != 99 {
 			t.Errorf("X1-B latest = %+v, want fabmat 99", r)

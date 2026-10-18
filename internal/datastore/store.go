@@ -17,25 +17,24 @@ import (
 // proceed while the collector (the only writer) holds the write lock.
 var db *sql.DB
 
+// Pragmas that apply per-connection go in the DSN so every pooled
+// connection carries them (modernc.org/sqlite applies _pragma on connect).
+// journal_mode=WAL and user_version are file-persistent (schema applies
+// them) but WAL is repeated here so each connection's journal handling is
+// explicit.
+const dsnPragmas = "?_pragma=busy_timeout(10000)" +
+	"&_pragma=foreign_keys(1)" +
+	"&_pragma=synchronous(2)" + // FULL
+	"&_pragma=cache_size(-4000)" +
+	"&_pragma=journal_mode(WAL)"
+
 func openDB(dbPath string) (*sql.DB, error) {
-	d, err := sql.Open("sqlite", dbPath)
+	d, err := sql.Open("sqlite", dbPath+dsnPragmas)
 	if err != nil {
 		return nil, fmt.Errorf("sql.Open: %w", err)
 	}
 	// WAL needs concurrent readers + one writer; the pool stays small.
 	d.SetMaxOpenConns(4)
-	pragmas := []string{
-		"journal_mode = WAL",
-		"synchronous = FULL",
-		"busy_timeout = 10000",
-		"foreign_keys = ON",
-		"cache_size = -4000",
-	}
-	for _, p := range pragmas {
-		if _, err := d.Exec("PRAGMA " + p); err != nil {
-			return nil, fmt.Errorf("pragma %s: %w", p, err)
-		}
-	}
 	if err := applySchema(d); err != nil {
 		return nil, fmt.Errorf("apply schema: %w", err)
 	}

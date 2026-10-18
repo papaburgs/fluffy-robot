@@ -120,13 +120,13 @@ HTTP dashboard on the default mux using `html/template` + `go-echarts/v2`.
 | `/jumpgates` | JumpgatesHandler | Jumpgate construction parallel chart |
 | `/chart` | LoadChartHandler | Credit/ship/construction charts (`?period=24h\|4h\|7d\|1h`, agent lists via `storageAgents`/`paramAgents`) |
 | `/status` | HeaderHandler | Status header |
-| `/export` | ExportHandler | `tar.gz` of the whole storage directory |
+| `/export` | ExportHandler | Streams a consistent `fluffy.db` snapshot (`VACUUM INTO`, free-space guarded; 503 when short) |
 | `/static/*` | http.FileServer | Static assets |
 | `/debug/vars` | expvar | Metrics |
 
 **Template functions:** `add` (int addition), `unixTime` (unix → `2006-01-02 15:04`), `constructionStatus` (code → name).
 
-**Charts pipeline:** handlers pull raw slices from the datastore → pure transforms in `charts.go` (`agentsMap`, `jumpgatesMap`, `latestShips`, `latestConstructionRecords`, `constructionRecords`, `agentRecordsCredits/Ships` with downsampling to ~50 points/series) → echarts objects → `RenderSnippet()` → injected as `template.HTML` fragments. Inactive agents are identified by `credits == 175000` (starting balance).
+**Charts pipeline:** handlers pull raw slices from the datastore → pure transforms in `charts.go` (`agentsMap`, `jumpgatesMap`, `latestConstructionRecords`, `constructionRecords`, `agentRecordsCredits/Ships` with downsampling to ~50 points/series) → echarts objects → `RenderSnippet()` → injected as `template.HTML` fragments. Inactive agents are identified by `credits == 175000` (starting balance).
 
 ## Data Flow
 
@@ -150,7 +150,7 @@ The game server resets weekly (from the API's `serverResets.frequency`):
 1. The reset timer is initially 7 days; every agent tick re-aims it to `nextReset - 3 min` (from the API's `serverResets.next`).
 2. When it fires: tickers stop, one last status fetch runs, then a 3-minute sleep.
 3. `loopAtReset` polls once a minute until the status shows `resetDate` == today and the charts leaderboard is empty.
-4. Tickers restart for the new reset; a new reset-date directory is created on the next status fetch.
+4. Tickers restart for the new reset; reset is a data column — nothing new is created, and the weekly retention prune + guarded VACUUM just ran inside `loopAtReset`.
 
 ## Deployment
 
@@ -205,7 +205,8 @@ Historical (pre-migration) notes live in git history.
 ```bash
 go run main.go                      # run
 go build -o fluffy-robot main.go    # build
-go test ./...                       # tests (only internal/gate has them)
+go test ./...                       # tests (internal/gate + internal/datastore)
+go test -race ./...                 # race-check (frontend reads while collector writes)
 GO_TEST_LONG=true go test ./internal/gate/...   # long-running gate tests
 go fmt ./...
 go vet ./...
@@ -233,7 +234,7 @@ fluffy-robot/
 │   ├── collector/          # Data collection
 │   │   ├── collector.go    # Tickers, reset detection
 │   │   ├── api.go          # HTTP client, retries, response types
-│   │   ├── agents.go       # Status, agents, factions (dead)
+│   │   ├── agents.go       # Status, agents, factions (once per reset)
 │   │   └── jumpgates.go    # Jumpgate discovery + construction tracking
 │   ├── datastore/          # Embedded SQLite store (modernc.org/sqlite)
 │   │   ├── datastore.go    # Init, UpdateReset, path helpers

@@ -137,11 +137,16 @@ func GetConstructions(reset Reset, start, end int64) ([]JGConstruction, error) {
 	return res, nil
 }
 
-// LatestConstructions returns the most recent construction row per gate —
-// the aggregate version of the old scan-everything-then-pick-latest pattern.
+// LatestConstructions returns the most recent construction row per gate,
+// bounded to the current reset week (same bound as LatestShips — see its
+// doc comment). Empty currentReset (fresh boot) returns nothing.
 func LatestConstructions() []JGConstruction {
+	bound, err := weekStart()
+	if err != nil {
+		return []JGConstruction{}
+	}
 	rows, err := db.Query(`SELECT jumpgate, fabmat, advcct, MAX(timestamp)
-		FROM construction GROUP BY jumpgate`)
+		FROM construction WHERE timestamp >= ? GROUP BY jumpgate`, bound)
 	if err != nil {
 		logging.Error("LatestConstructions:", err)
 		return []JGConstruction{}

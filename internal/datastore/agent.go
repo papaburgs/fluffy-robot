@@ -172,11 +172,19 @@ func GetAgentHistory(reset Reset, start, end int64, agents []string) ([]AgentSta
 
 // LatestShips returns each agent's ships at its max timestamp — the
 // aggregate version of the old in-memory latestShips() transform.
+// Bounded to the current reset week: without the bound this is a
+// full-table scan whose cost grows week over week, and pages never display
+// pre-reset agents anyway. Empty currentReset (fresh boot) returns nothing.
 func LatestShips() map[string]int64 {
+	bound, err := weekStart()
+	if err != nil {
+		return map[string]int64{}
+	}
 	rows, err := db.Query(
 		`SELECT a.symbol, s.ships, MAX(s.timestamp)
 		   FROM agent_status s JOIN agents a ON a.id = s.agent_id
-		  GROUP BY a.symbol`)
+		  WHERE s.timestamp >= ?
+		  GROUP BY a.symbol`, bound)
 	if err != nil {
 		logging.Error("LatestShips:", err)
 		return map[string]int64{}

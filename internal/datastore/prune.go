@@ -98,6 +98,19 @@ func Prune(weeks int, resetDate Reset) error {
 	return nil
 }
 
+// weekStart returns the unix start (Sunday 13:00 UTC) of the current
+// reset week — the lower bound for "latest" aggregates.
+func weekStart() (int64, error) {
+	if currentReset == "" {
+		return 0, fmt.Errorf("no current reset yet")
+	}
+	day, err := parseResetDay(currentReset)
+	if err != nil {
+		return 0, err
+	}
+	return day.Unix(), nil
+}
+
 func parseResetDay(r Reset) (time.Time, error) {
 	s := string(r)
 	if len(s) < 10 {

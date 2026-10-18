@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS agents (
 );
 
 CREATE TABLE IF NOT EXISTS agent_snapshots (
-	reset_date   INTEGER NOT NULL,
+	reset_date   TEXT    NOT NULL,
 	agent_id     INTEGER NOT NULL REFERENCES agents(id),
 	credits      INTEGER NOT NULL,
 	faction      TEXT    NOT NULL,
