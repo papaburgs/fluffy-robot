@@ -1,42 +1,60 @@
 package datastore
 
 import (
-	"encoding/gob"
-	"fmt"
-
-	"github.com/papaburgs/fluffy-robot/internal/logging"
+	"database/sql"
+	"encoding/json"
 )
 
+// StoreFactions upserts factions for the current reset (one fetch per
+// reset). Traits are marshaled to JSON in the traits column; the Reset
+// field is stamped from currentReset.
 func StoreFactions(fac []Faction) error {
-	if currentReset == "" {
-		logging.Error("Current Reset is empty")
-	}
-	for i, k := range fac {
-		k.Reset = currentReset
-		fac[i] = k
-	}
-	return writeData("factions", 0, fac)
+	return inTx(func(tx *sql.Tx) error {
+		ins, err := tx.Prepare(`INSERT OR REPLACE INTO factions
+			(reset_date, symbol, name, description, headquarters, traits, is_recruiting)
+			VALUES (?, ?, ?, ?, ?, ?, ?)`)
+		if err != nil {
+			return err
+		}
+		defer ins.Close()
+		for _, f := range fac {
+			traits, err := json.Marshal(f.Traits)
+			if err != nil {
+				return err
+			}
+			recruiting := 0
+			if f.IsRecruiting {
+				recruiting = 1
+			}
+			if _, err := ins.Exec(string(currentReset), f.Symbol, f.Name, f.Description,
+				f.Headquarters, string(traits), recruiting); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
-func GetFactions(thisReset Reset) ([]Faction, error) {
-	res := []Faction{}
-	m, err := readData("factions.", thisReset)
+func GetFactions(reset Reset) ([]Faction, error) {
+	rows, err := db.Query(`SELECT reset_date, symbol, name, description, headquarters, traits, is_recruiting
+		FROM factions WHERE reset_date = ? ORDER BY symbol`, resetOrCurrent(reset))
 	if err != nil {
-		logging.Error("Failed to read factions file:", err)
-		return res, err
+		return nil, err
 	}
-
-	if len(m) != 1 {
-		return res, fmt.Errorf("more than one file returned")
-	}
-
-	for _, b := range m {
-		gobDec := gob.NewDecoder(b)
-		if err := gobDec.Decode(&res); err != nil {
-			logging.Error("error decoding gob:", err)
-			return res, err
+	defer rows.Close()
+	res := []Faction{}
+	for rows.Next() {
+		var f Faction
+		var traits string
+		var recruiting int
+		if err := rows.Scan(&f.Reset, &f.Symbol, &f.Name, &f.Description, &f.Headquarters, &traits, &recruiting); err != nil {
+			return nil, err
 		}
+		if err := json.Unmarshal([]byte(traits), &f.Traits); err != nil {
+			return nil, err
+		}
+		f.IsRecruiting = recruiting != 0
+		res = append(res, f)
 	}
-	m = nil
-	return res, nil
+	return res, rows.Err()
 }
