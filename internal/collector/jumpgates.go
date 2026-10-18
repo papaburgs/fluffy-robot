@@ -53,7 +53,9 @@ func (c *Collector) updateJumpgatesFromAgents(ctx context.Context, agents []ds.P
 	for _, j := range jgs {
 		jgList = append(jgList, j)
 	}
-	ds.UpdateJumpGates(jgList)
+	if err := ds.UpdateJumpGates(jgList); err != nil {
+		logging.Error("jumpgate list write failed", err)
+	}
 
 	logging.Info("Update complete construction complete", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
 	jgList = nil
@@ -121,11 +123,15 @@ func (c *Collector) updateJumpgates(ctx context.Context) error {
 	completedJgs = nil
 
 	if len(completions) > 0 {
-		ds.MarkJumpgatesComplete(completions, c.currentTimestamp)
+		if err := ds.MarkJumpgatesComplete(completions, c.currentTimestamp); err != nil {
+			logging.Error("mark jumpgates complete failed", err)
+		}
 	}
 
 	if len(constructions) > 0 {
-		ds.AddConstructions(constructions, c.currentTimestamp)
+		if err := ds.AddConstructions(constructions, c.currentTimestamp); err != nil {
+			logging.Error("construction write failed", err)
+		}
 	}
 	metrics.CollectorJumpgateUpdates.Add(1)
 	metrics.CollectorLastTimestamp.Set(time.Now().Unix())
@@ -179,11 +185,15 @@ func (c *Collector) updateInactiveJumpgates(ctx context.Context) error {
 	// logging.Debug("done scan")
 
 	if len(updateConst) > 0 {
-		ds.MarkJumpgatesStarted(updateConst)
+		if err := ds.MarkJumpgatesStarted(updateConst); err != nil {
+			logging.Error("mark jumpgates started failed", err)
+		}
 	}
 
 	if len(constructions) > 0 {
-		ds.AddConstructions(constructions, c.currentTimestamp)
+		if err := ds.AddConstructions(constructions, c.currentTimestamp); err != nil {
+			logging.Error("construction write failed", err)
+		}
 	}
 	metrics.CollectorConstructionChecks.Add(1)
 	metrics.CollectorLastTimestamp.Set(time.Now().Unix())
