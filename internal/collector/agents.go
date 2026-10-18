@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/papaburgs/fluffy-robot/internal/datastore"
 	ds "github.com/papaburgs/fluffy-robot/internal/datastore"
 	"github.com/papaburgs/fluffy-robot/internal/logging"
 	"github.com/papaburgs/fluffy-robot/internal/metrics"
@@ -24,24 +23,33 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 		return err
 	}
 
-	var status datastore.ResponseStatus
+	var status ds.ResponseStatus
 	if err := json.Unmarshal(resp.Bytes, &status); err != nil {
 		return err
 	}
 	// logging.Debug("api call done")
 
+	prevReset := c.currentReset
 	c.currentReset = ds.Reset(status.ResetDate)
-	datastore.UpdateReset(c.currentReset)
+	ds.UpdateReset(c.currentReset)
 	c.nextReset = status.ServerResets.Next
 
 	// logging.Debug("processing response")
-	err = datastore.StoreStats(status)
+	err = ds.StoreStats(status)
 	if err != nil {
 		logging.Error("Error saving stats", err)
 	}
-	err = datastore.StoreLeaderboards(status)
+	err = ds.StoreLeaderboards(status)
 	if err != nil {
 		logging.Error("Error saving leaderboards", err)
+	}
+	// Factions are fetched once per reset (the list is stable within a
+	// week): first status of a new game — including fresh boot, when
+	// prevReset is "" — triggers it. Errors are logged, never fatal.
+	if prevReset != c.currentReset {
+		if ferr := c.updateFactions(ctx); ferr != nil {
+			logging.Error("Error fetching factions for new reset", ferr)
+		}
 	}
 	logging.Info("status ingestion completed", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
 	return nil
@@ -50,7 +58,7 @@ func (c *Collector) updateStatus(ctx context.Context) error {
 func (c *Collector) updateAgents(ctx context.Context) error {
 	// logging.Debug("updating agents")
 
-	var allAgents []datastore.PublicAgent
+	var allAgents []ds.PublicAgent
 	page := 1
 	perPage := 20
 
@@ -79,7 +87,9 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 		return nil
 	}
 
-	datastore.StoreAgents(allAgents, c.currentTimestamp)
+	if err := ds.StoreAgents(allAgents, c.currentTimestamp); err != nil {
+		logging.Error("agent cycle write failed", err)
+	}
 
 	err := c.updateJumpgatesFromAgents(ctx, allAgents)
 	if err != nil {
@@ -93,10 +103,10 @@ func (c *Collector) updateAgents(ctx context.Context) error {
 	return nil
 }
 
-func (c *Collector) updateFactionss(ctx context.Context) error {
+func (c *Collector) updateFactions(ctx context.Context) error {
 	// logging.Debug("updating factions")
 
-	allFactions := []datastore.Faction{}
+	allFactions := []ds.Faction{}
 	page := 1
 	perPage := 20
 
@@ -121,7 +131,9 @@ func (c *Collector) updateFactionss(ctx context.Context) error {
 		page++
 	}
 
-	datastore.StoreFactions(allFactions)
+	if err := ds.StoreFactions(allFactions); err != nil {
+		logging.Error("faction write failed", err)
+	}
 
 	logging.Info("faction", "apiCalls", c.apiCalls, "duration", time.Now().Sub(c.ingestStart))
 	allFactions = nil
