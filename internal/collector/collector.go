@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -16,17 +17,36 @@ import (
 )
 
 type Collector struct {
-	baseURL          string
-	gate             *gate.Gate
-	currentReset     ds.Reset
-	nextReset        time.Time
-	currentTimestamp int64
-	apiCalls         int
-	ingestStart      time.Time
-	filterRegexes    []*regexp.Regexp
-	agentTicker      *time.Ticker
-	constTicker      *time.Ticker
-	jumpgateTicker   *time.Ticker
+	baseURL              string
+	gate                 *gate.Gate
+	currentReset         ds.Reset
+	nextReset            time.Time
+	currentTimestamp     int64
+	apiCalls             int
+	ingestStart          time.Time
+	filterRegexes        []*regexp.Regexp
+	agentTicker          *time.Ticker
+	constTicker          *time.Ticker
+	jumpgateTicker       *time.Ticker
+	agentInterval        time.Duration
+	jumpgateInterval     time.Duration
+	constructionInterval time.Duration
+}
+
+// tickDuration reads a Go duration from an env var, falling back to the
+// default on unset/invalid/non-positive values (a bad value must never
+// reach time.NewTicker).
+func tickDuration(env string, def time.Duration) time.Duration {
+	raw, ok := os.LookupEnv(env)
+	if !ok {
+		return def
+	}
+	d, err := time.ParseDuration(raw)
+	if err != nil || d <= 0 {
+		logging.Warn("invalid "+env+", using default", "value", raw, "default", def)
+		return def
+	}
+	return d
 }
 
 func NewCollector(gate *gate.Gate, baseURL string) *Collector {
@@ -34,6 +54,9 @@ func NewCollector(gate *gate.Gate, baseURL string) *Collector {
 		gate:    gate,
 		baseURL: baseURL,
 	}
+	c.agentInterval = tickDuration("FLUFFY_AGENT_TICK", 5*time.Minute)
+	c.jumpgateInterval = tickDuration("FLUFFY_JUMPGATE_TICK", 30*time.Minute)
+	c.constructionInterval = tickDuration("FLUFFY_CONSTRUCTION_TICK", 4*time.Hour)
 	return &c
 }
 
@@ -45,9 +68,9 @@ func (c *Collector) Run(ctx context.Context) {
 		logging.Error("Error running updateStatus", err)
 	}
 
-	c.agentTicker = time.NewTicker(5 * time.Minute)
-	c.jumpgateTicker = time.NewTicker(30 * time.Minute)
-	c.constTicker = time.NewTicker(4 * 60 * time.Minute)
+	c.agentTicker = time.NewTicker(c.agentInterval)
+	c.jumpgateTicker = time.NewTicker(c.jumpgateInterval)
+	c.constTicker = time.NewTicker(c.constructionInterval)
 	resetTimer := time.NewTimer(7 * 24 * time.Hour)
 
 	for {
@@ -94,9 +117,9 @@ func (c *Collector) Run(ctx context.Context) {
 			if err := c.loopAtReset(ctx); err != nil {
 				logging.Error("Error in loopAtReset", err)
 			}
-			c.agentTicker = time.NewTicker(5 * time.Minute)
-			c.jumpgateTicker = time.NewTicker(30 * time.Minute)
-			c.constTicker = time.NewTicker(4 * 60 * time.Minute)
+			c.agentTicker = time.NewTicker(c.agentInterval)
+			c.jumpgateTicker = time.NewTicker(c.jumpgateInterval)
+			c.constTicker = time.NewTicker(c.constructionInterval)
 			logging.Info("restarted tickers")
 		}
 	}

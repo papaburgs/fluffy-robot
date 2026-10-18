@@ -22,6 +22,9 @@ No CI workflows exist in this repo.
 | `FLUFFY_PORT` | `8845` | HTTP server port (`:` prefix auto-added if missing) |
 | `FLUFFY_STORAGE_PATH` | `./` | Data directory; the store is a single `fluffy.db` SQLite file inside it |
 | `FLUFFY_GATE_BUCKET_SIZE` | `20` | Rate limit bucket size (t1 limit is hardcoded to 2 in `main.go`) |
+| `FLUFFY_AGENT_TICK` | `5m` | Agent + status collection interval (Go duration syntax, e.g. `30s`) |
+| `FLUFFY_JUMPGATE_TICK` | `30m` | Jumpgate (under construction) progress interval |
+| `FLUFFY_CONSTRUCTION_TICK` | `4h` | Scan for newly-started jumpgate construction |
 | `FLUFFY_RETENTION_WEEKS` | `5` | Full game weeks kept in the DB (floor 4); older weeks pruned at the Sunday reset boundary |
 | `FLUFFY_TEMPLATE_DIR` | `internal/frontend` | Directory containing `templates/` |
 | `FLUFFY_STATIC_DIR` | `internal/frontend` | Directory containing `static/` |
