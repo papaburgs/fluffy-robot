@@ -62,9 +62,9 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	startTime = time.Now().Add(-1 * duration).Unix()
 
-	thisReset := ds.Reset(resets[0])
+	thisReset := ds.LatestReset()
 
-	agentHist, _ := ds.GetAgentHistory(thisReset, startTime, 0, nil)
+	agentHist, _ := ds.GetAgentHistory(thisReset, startTime, 0, chartAgents)
 	jgList, _ := ds.GetJumpgateList(thisReset)
 	constrList, _ := ds.GetConstructions(thisReset, startTime, 0)
 
@@ -121,7 +121,7 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 func PermissionsHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
-	aList, err := ds.GetAgentList(ds.Reset(resets[0]))
+	aList, err := ds.GetAgentList(ds.LatestReset())
 	if err != nil {
 		logging.Error("error loading agents", err)
 	}
@@ -323,7 +323,7 @@ func JumpgatesHandler(w http.ResponseWriter, r *http.Request) {
 
 	aList, _ := ds.GetAgentList(thisReset)
 	jgList, _ := ds.GetJumpgateList(thisReset)
-	constrList, _ := ds.GetConstructions(thisReset, 0, 0)
+	constrList := ds.LatestConstructions()
 
 	agentsLookup := agentsMap(aList)
 	jumpgates := jumpgatesMap(jgList)
@@ -453,12 +453,11 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 	thisReset := ds.LatestReset()
 
 	aList, _ := ds.GetAgentList(thisReset)
-	agentHist, _ := ds.GetAgentHistory(thisReset, 0, 0, nil)
 	jgList, _ := ds.GetJumpgateList(thisReset)
-	constrList, _ := ds.GetConstructions(thisReset, 0, 0)
+	constrList := ds.LatestConstructions()
 
 	agentsLookup := agentsMap(aList)
-	ships := latestShips(agentHist)
+	ships := ds.LatestShips()
 	jumpgates := jumpgatesMap(jgList)
 
 	allNames := make([]string, 0, len(agentsLookup))
@@ -557,7 +556,6 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	aList = nil
-	agentHist = nil
 	jgList = nil
 	constrList = nil
 	agentsLookup = nil

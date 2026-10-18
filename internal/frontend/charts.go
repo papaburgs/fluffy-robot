@@ -22,18 +22,6 @@ func agentsMap(agents []ds.Agent) map[string]ds.Agent {
 	return res
 }
 
-func latestShips(history []ds.AgentStatus) map[string]int64 {
-	latest := make(map[string]int64)
-	latestTs := make(map[string]int64)
-	for _, r := range history {
-		if r.Timestamp > latestTs[r.Symbol] {
-			latestTs[r.Symbol] = r.Timestamp
-			latest[r.Symbol] = r.Ships
-		}
-	}
-	return latest
-}
-
 func agentRecordsCredits(history []ds.AgentStatus, agent string, dur time.Duration) []ds.DataPoint {
 	var res []ds.DataPoint
 	cutoff := time.Now().Add(-1 * dur).Unix()
