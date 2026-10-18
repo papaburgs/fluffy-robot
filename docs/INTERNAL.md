@@ -175,6 +175,9 @@ The game server resets weekly (from the API's `serverResets.frequency`):
 | `FLUFFY_STORAGE_PATH` | `./` | Data directory; the store is `fluffy.db` inside it |
 | `FLUFFY_RETENTION_WEEKS` | `5` | Full game weeks kept (floor 4); pruned at the Sunday reset boundary |
 | `FLUFFY_GATE_BUCKET_SIZE` | `20` | t60 (per-minute) rate limit; t1 limit is hardcoded to 2 in `main.go` |
+| `FLUFFY_AGENT_TICK` | `5m` | Agent + status collection interval (Go duration syntax, e.g. `30s`) |
+| `FLUFFY_JUMPGATE_TICK` | `30m` | Jumpgate (under construction) progress interval |
+| `FLUFFY_CONSTRUCTION_TICK` | `4h` | Scan for newly-started jumpgate construction |
 | `FLUFFY_TEMPLATE_DIR` | `internal/frontend` | Directory containing `templates/` |
 | `FLUFFY_STATIC_DIR` | `internal/frontend` | Directory containing `static/` |
 | `FLUFFY_LOG_LEVEL` | info | Set `debug` or `dbg` to enable `logging.Debug()` output |
