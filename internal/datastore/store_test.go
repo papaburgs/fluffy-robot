@@ -84,6 +84,7 @@ func TestOpenDB_PrivilegedState(t *testing.T) {
 }
 
 func TestInTx_CommitsAndRollsBack(t *testing.T) {
+	fastBackoff(t) // the intentional rollback below now retries (Task 6)
 	d, err := openDB(filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
 		t.Fatalf("openDB: %v", err)

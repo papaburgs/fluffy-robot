@@ -6,8 +6,11 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/papaburgs/fluffy-robot/internal/metrics"
 )
 
 // db is the single process-wide connection. WAL lets concurrent readers
@@ -39,18 +42,42 @@ func openDB(dbPath string) (*sql.DB, error) {
 	return d, nil
 }
 
-// inTx runs fn in a single transaction, committing on nil error or
-// rolling back otherwise. Retry/backoff live in Task 6.
+// retryBackoff is the base backoff between failed cycle-write attempts
+// (1s, 2s, 4s, … up to 64s; 7 attempts ≈ 2 min worst case, then the
+// cycle is dropped loudly). Tests shrink it.
+var retryBackoff = time.Second
+
+// inTx runs fn in a single transaction, committing on nil error and
+// rolling back otherwise. A failed cycle write (transaction or commit
+// failure) is retried with exponential backoff — the data was fetched
+// from the API once and the spec treats silently dropping a cycle as the
+// worst outcome; retries coalesce because writes are INSERT OR REPLACE on
+// natural keys. After 7 attempts the last error is returned to the caller,
+// which logs it; counters make the failure visible in /debug/vars.
 func inTx(fn func(tx *sql.Tx) error) error {
-	tx, err := db.Begin()
-	if err != nil {
-		return err
+	var err error
+	for attempt := 0; attempt < 7; attempt++ {
+		if attempt > 0 {
+			metrics.DatastoreWriteRetries.Add(1)
+			time.Sleep(retryBackoff << (attempt - 1))
+		}
+		err = func() error {
+			tx, terr := db.Begin()
+			if terr != nil {
+				return terr
+			}
+			if err := fn(tx); err != nil {
+				_ = tx.Rollback()
+				return err
+			}
+			return tx.Commit()
+		}()
+		if err == nil {
+			return nil
+		}
 	}
-	if err := fn(tx); err != nil {
-		_ = tx.Rollback()
-		return err
-	}
-	return tx.Commit()
+	metrics.DatastoreWriteErrors.Add(1)
+	return err
 }
 
 func freeSpace(path string) (int64, error) {
