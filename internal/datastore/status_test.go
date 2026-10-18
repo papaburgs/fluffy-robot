@@ -1,6 +1,10 @@
 package datastore
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func statusResp(reset string, agents int, accounts *int) ResponseStatus {
 	var r ResponseStatus
@@ -54,7 +58,7 @@ func TestStats_RoundTripLatest(t *testing.T) {
 }
 
 func TestGetStats_OlderReset(t *testing.T) { // cross-reset fix (#4)
-	seedTestDB(t)                            // current = 2026-10-05
+	seedTestDB(t) // current = 2026-10-05
 	five := 5
 	if err := StoreStats(statusResp("2026-10-05", 10, &five)); err != nil {
 		t.Fatalf("StoreStats A: %v", err)
@@ -119,19 +123,14 @@ func TestLeaderboards_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestAllResets_OrderedDesc(t *testing.T) {
+// UpdateReset is in-memory only: a reset flips currentReset; storage is a
+// single file, so no per-reset directory may be created.
+func TestUpdateReset_NoDiskSideEffects(t *testing.T) {
 	seedTestDB(t)
-	for _, r := range []string{"2026-09-28", "2026-10-05", "2026-10-12"} {
-		five := 5
-		if err := StoreStats(statusResp(r, 1, &five)); err != nil {
-			t.Fatalf("StoreStats %s: %v", r, err)
-		}
-	}
-	resets := AllResets()
-	if len(resets) != 3 {
-		t.Fatalf("resets = %v, want 3", resets)
-	}
-	if resets[0] != "2026-10-12" || resets[2] != "2026-09-28" {
-		t.Errorf("resets = %v, want newest first", resets)
+	dir := t.TempDir()
+	path = dir
+	UpdateReset("2026-10-19")
+	if _, err := os.Stat(filepath.Join(dir, "2026-10-19")); err == nil {
+		t.Errorf("UpdateReset created a reset directory; storage is one file, no per-reset dirs")
 	}
 }

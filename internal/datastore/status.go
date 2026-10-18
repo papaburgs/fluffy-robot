@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
-
-	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
 
 // StoreStats upserts the status row for the current reset. A missing
@@ -121,26 +119,6 @@ func GetLeaderboard(reset Reset) ([]LeaderboardEntry, []LeaderboardEntry, error)
 	return credits, charts, nil
 }
 
-// AllResets returns every reset date stored, newest first.
-func AllResets() []string {
-	rows, err := db.Query(`SELECT DISTINCT reset_date FROM stats ORDER BY reset_date DESC`)
-	if err != nil {
-		logging.Error("AllResets:", err)
-		return []string{}
-	}
-	defer rows.Close()
-	res := []string{}
-	for rows.Next() {
-		var d string
-		if err := rows.Scan(&d); err != nil {
-			logging.Error("AllResets scan:", err)
-			return []string{}
-		}
-		res = append(res, d)
-	}
-	return res
-}
-
 // LatestReset busy-waits until the collector has set currentReset — same
 // behavior as the old path (blocks on fresh boot until the first status).
 func LatestReset() Reset {
@@ -152,22 +130,4 @@ func LatestReset() Reset {
 		}
 	}
 	return currentReset
-}
-
-// NextReset reads the next-reset timestamp from the current reset's stats
-// row. Preserved for now; deleted if unreferenced at Task 11.
-func NextReset() time.Time {
-	for {
-		if currentReset == "" {
-			time.Sleep(time.Second)
-		} else {
-			break
-		}
-	}
-	st, err := GetStats(currentReset)
-	if err != nil {
-		logging.Error("error loading stats for NextReset", err)
-		return time.Time{}
-	}
-	return st.NextReset
 }

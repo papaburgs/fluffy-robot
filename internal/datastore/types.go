@@ -65,11 +65,6 @@ type LeaderboardEntry struct {
 	Value  int64
 }
 
-type LeaderboardRecord struct {
-	CreditsList []LeaderboardEntry
-	ChartsList  []LeaderboardEntry
-}
-
 // ***********  Agent types *************** \\
 // Public agent is the type that is returned from the api
 type PublicAgent struct {
@@ -80,23 +75,12 @@ type PublicAgent struct {
 	Symbol          string `json:"symbol"`
 }
 
-type TimedAgentRecord struct {
-	Timestamp time.Time
-	ShipCount int
-	Credits   int
-}
-
 type Agent struct {
 	Symbol       string
 	Credits      int64
 	Faction      string
 	Headquarters string
 	System       string
-}
-
-type resetAgentKey struct {
-	Reset string
-	Agent string
 }
 
 type AgentStatus struct {
@@ -138,11 +122,6 @@ type JGConstruction struct {
 	Jumpgate  string
 	Fabmat    int
 	Advcct    int
-}
-
-type JumpGateAgentListStruct struct {
-	AgentsToCheck  []PublicAgent `json:"agents_to_check"`
-	AgentsToIgnore []PublicAgent `json:"agents_to_ignore"`
 }
 
 type ConstructionOverview struct {

@@ -41,8 +41,16 @@ func TestStoreAgents_RoundTrip(t *testing.T) {
 	seedTestDB(t)
 	now := int64(1_000_000)
 	agents := pubAgents(
-		struct{ sym, hf, hq string; cr int64; sc int }{"BORG-1", "COSMIC", "X1-YZ-123", 175000, 2},
-		struct{ sym, hf, hq string; cr int64; sc int }{"BORG-2", "GALACTIC", "X1-YZ-456", 200000, 5},
+		struct {
+			sym, hf, hq string
+			cr          int64
+			sc          int
+		}{"BORG-1", "COSMIC", "X1-YZ-123", 175000, 2},
+		struct {
+			sym, hf, hq string
+			cr          int64
+			sc          int
+		}{"BORG-2", "GALACTIC", "X1-YZ-456", 200000, 5},
 	)
 	if err := StoreAgents(agents, now); err != nil {
 		t.Fatalf("StoreAgents: %v", err)
@@ -68,11 +76,19 @@ func TestStoreAgents_RoundTrip(t *testing.T) {
 
 func TestStoreAgents_SnapshotRefreshSeriesAppends(t *testing.T) {
 	seedTestDB(t)
-	a := pubAgents(struct{ sym, hf, hq string; cr int64; sc int }{"BORG-1", "COSMIC", "X1-YZ-123", 175000, 2})
+	a := pubAgents(struct {
+		sym, hf, hq string
+		cr          int64
+		sc          int
+	}{"BORG-1", "COSMIC", "X1-YZ-123", 175000, 2})
 	if err := StoreAgents(a, 1_000_000); err != nil {
 		t.Fatalf("StoreAgents first: %v", err)
 	}
-	a2 := pubAgents(struct{ sym, hf, hq string; cr int64; sc int }{"BORG-1", "COSMIC", "X1-YZ-123", 190000, 3})
+	a2 := pubAgents(struct {
+		sym, hf, hq string
+		cr          int64
+		sc          int
+	}{"BORG-1", "COSMIC", "X1-YZ-123", 190000, 3})
 	if err := StoreAgents(a2, 1_000_300); err != nil {
 		t.Fatalf("StoreAgents second: %v", err)
 	}
@@ -100,7 +116,11 @@ func TestStoreAgents_SnapshotRefreshSeriesAppends(t *testing.T) {
 
 func TestGetAgentHistory_WindowAndAgentFilter(t *testing.T) {
 	seedTestDB(t)
-	a1 := pubAgents(struct{ sym, hf, hq string; cr int64; sc int }{"A1", "COSMIC", "X1-YZ-123", 175000, 2})
+	a1 := pubAgents(struct {
+		sym, hf, hq string
+		cr          int64
+		sc          int
+	}{"A1", "COSMIC", "X1-YZ-123", 175000, 2})
 	// ten 5-minute ticks for A1, plus a second agent B1
 	ts := int64(2_000_000)
 	for i := 0; i < 10; i++ {
@@ -108,7 +128,11 @@ func TestGetAgentHistory_WindowAndAgentFilter(t *testing.T) {
 		if err := StoreAgents(a1, ts+int64(i*300)); err != nil {
 			t.Fatalf("StoreAgents a1 %d: %v", i, err)
 		}
-		b1 := pubAgents(struct{ sym, hf, hq string; cr int64; sc int }{"B1", "GALACTIC", "X1-YZ-456", 50000, 1})
+		b1 := pubAgents(struct {
+			sym, hf, hq string
+			cr          int64
+			sc          int
+		}{"B1", "GALACTIC", "X1-YZ-456", 50000, 1})
 		if err := StoreAgents(b1, ts+int64(i*300)); err != nil {
 			t.Fatalf("StoreAgents b1 %d: %v", i, err)
 		}
@@ -116,8 +140,8 @@ func TestGetAgentHistory_WindowAndAgentFilter(t *testing.T) {
 
 	// window covers only the middle 5 ticks of A1, filter only A1
 	// a1 ticks at ts+0..ts+2700 (10 ticks, step 300).
-	start := ts + 2*300  // skip first two
-	end := ts + 6*300    // skip last three
+	start := ts + 2*300 // skip first two
+	end := ts + 6*300   // skip last three
 	hist, err := GetAgentHistory(currentReset, start, end, []string{"A1"})
 	if err != nil {
 		t.Fatalf("GetAgentHistory: %v", err)
@@ -137,7 +161,11 @@ func TestGetAgentHistory_WindowAndAgentFilter(t *testing.T) {
 
 func TestGetAgentHistory_EmptyAgentFilter(t *testing.T) {
 	seedTestDB(t)
-	a := pubAgents(struct{ sym, hf, hq string; cr int64; sc int }{"A1", "COSMIC", "X1-YZ-123", 175000, 2})
+	a := pubAgents(struct {
+		sym, hf, hq string
+		cr          int64
+		sc          int
+	}{"A1", "COSMIC", "X1-YZ-123", 175000, 2})
 	if err := StoreAgents(a, 1_000_000); err != nil {
 		t.Fatalf("StoreAgents: %v", err)
 	}
@@ -152,7 +180,11 @@ func TestGetAgentHistory_EmptyAgentFilter(t *testing.T) {
 
 func TestGetAgentHistory_OlderReset(t *testing.T) {
 	seedTestDB(t)
-	a := pubAgents(struct{ sym, hf, hq string; cr int64; sc int }{"A1", "COSMIC", "X1-YZ-123", 100, 2})
+	a := pubAgents(struct {
+		sym, hf, hq string
+		cr          int64
+		sc          int
+	}{"A1", "COSMIC", "X1-YZ-123", 100, 2})
 	if err := StoreAgents(a, 1_000_000); err != nil {
 		t.Fatalf("StoreAgents A: %v", err)
 	}
@@ -173,7 +205,11 @@ func TestGetAgentHistory_OlderReset(t *testing.T) {
 
 func TestLatestShips(t *testing.T) {
 	seedTestDB(t)
-	a := pubAgents(struct{ sym, hf, hq string; cr int64; sc int }{"A1", "COSMIC", "X1-YZ-123", 175000, 2})
+	a := pubAgents(struct {
+		sym, hf, hq string
+		cr          int64
+		sc          int
+	}{"A1", "COSMIC", "X1-YZ-123", 175000, 2})
 	if err := StoreAgents(a, 1_000_000); err != nil {
 		t.Fatalf("StoreAgents 1: %v", err)
 	}
