@@ -1,16 +1,22 @@
 package datastore
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
 
-// seedTestDB opens a temp DB and assigns the package globals so package
-// helpers (inTx, UpdateReset, ...) find a live store.
+// seedTestDB opens a temp DB named fluffy.db and points the package's
+// `path` global at its directory, so dbSize/freeSpace/export (which read
+// {path}/fluffy.db) work against the test store.
 func seedTestDB(t *testing.T) {
 	t.Helper()
-	d, err := openDB(t.TempDir() + "/t.db")
+	dir := t.TempDir()
+	path = dir
+	d, err := openDB(filepath.Join(dir, "fluffy.db"))
 	if err != nil {
 		t.Fatalf("seed db: %v", err)
 	}
-	t.Cleanup(func() { d.Close() })
+	t.Cleanup(func() { d.Close(); path = "./" })
 	db = d
 	UpdateReset("2026-10-05")
 }

@@ -39,6 +39,8 @@ func Init() {
 		}
 	}
 
+	parseRetentionWeeks()
+
 	d, err := openDB(filepath.Join(path, "fluffy.db"))
 	if err != nil {
 		logging.Error("Failed to open sqlite db:", err)
