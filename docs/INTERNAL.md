@@ -4,7 +4,7 @@
 
 Fluffy Robot is a dashboard application that collects and displays public data from the SpaceTraders API. It operates without authentication, polling public endpoints for leaderboards, agent statistics, and jumpgate information.
 
-**Primary design goal: lean on memory.** The app runs as a single container on Railway, where RAM is the dominant cost (CPU is light except during ingestion bursts). Every change should assume memory is the constraint. The current file-based datastore has known memory-pressure problems in retrieval (see [Known issues](#known-issues)); replacing it with a SQLite backend is the planned structural fix, tracked on the internal Forgejo.
+**Primary design goal: lean on memory.** The app runs as a single container on Railway, where RAM is the dominant cost (CPU is light except during ingestion bursts). Every change should assume memory is the constraint. The datastore is an embedded SQLite database (see [Datastore](#datastore-internaldatastore) — one bounded file, SQL-windowed reads, no load-then-filter); it replaced the file-based store whose whole-reset loads were the main RAM driver.
 
 ## Architecture Overview
 
@@ -17,7 +17,7 @@ main.go
 
 Startup sequence in `main.go`: `logging.InitLogger()` → `datastore.Init()` → 1s sleep → collector goroutine (`c.Run`) → 2s sleep → `frontend.StartServer()` (blocking). The sleeps are race-condition guards; the collector and datastore need time to settle before the frontend serves requests.
 
-The collector and the frontend do not share in-memory data structures. The filesystem is the only channel between them: the collector writes files, the frontend re-reads them on every request. There is **no in-memory cache layer** (an older cached implementation was removed; some leftovers like the `datastore_cache_resets_total` metric and `datastore.consolidate()` are dormant).
+The collector and the frontend share no in-memory state: the SQLite database is the channel — the collector writes one transaction per cycle, the frontend reads narrow windows per request. There is **no in-memory cache layer** (an older cached implementation was removed long before the SQLite migration).
 
 ## Collector (`internal/collector/`)
 
@@ -49,29 +49,52 @@ Token-bucket-ish two-tier limiter driven by tickers:
 
 ## Datastore (`internal/datastore/`)
 
-File-based storage under `{FLUFFY_STORAGE_PATH}/{reset_date}/`. Two formats per write: compressed Gob (`.gob.zst`, always) and pretty-printed JSON (`.json`, only when `FLUFFY_WRITE_JSON=yes|y|true`).
+Embedded **SQLite** — one file, `{FLUFFY_STORAGE_PATH}/fluffy.db`, opened once per process
+(`modernc.org/sqlite`, pure Go; works with the existing `CGO_ENABLED=0` alpine build).
+Pragmas at open: `journal_mode=WAL` (concurrent readers while the collector writes),
+`synchronous=FULL` (a hard kill cannot lose the last cycle), `busy_timeout=10000`,
+`foreign_keys=ON`, `cache_size=-4000` (4 MiB page-cache cap — keeps RSS flat; mmap stays off).
+Schema version lives in `PRAGMA user_version` (currently 1).
 
-**File naming:** "latest" snapshots are written with timestamp `0` — `agents-0.gob.zst`, `jumpgates-0.gob.zst`, `stats-0.gob.zst`, `leaderboard-0.gob.zst` — and are overwritten every cycle. Time series get real timestamps: `agentsStatus-{unixts}.gob.zst`, `construction-{unixts}.gob.zst` (appended every cycle).
+**Tables** (see `schema.go` for the DDL):
 
-**Read path (hot spot):** `readData(prefix, thisReset)` scans the reset directory and loads *every* matching file, fully decompressed, into `map[string]*bytes.Buffer`. Getters then gob-decode *all* of it and filter in memory:
+- `agents` — global symbol registry (id ↔ symbol); series rows store the id.
+- `agent_snapshots` — per-reset latest attributes (replaced wholesale per agent tick, inside the cycle tx).
+- `agent_status` — time series `(agent_id, timestamp, credits, ships)`, `WITHOUT ROWID`, clustered on the key.
+- `stats` — one row per reset (upsert).
+- `leaderboards` — `(reset_date, kind, rank)` rows; kind is `credits` or `charts`.
+- `jumpgates` — per-reset gate list with `status` (NoActivity/Active/Const/Complete) and `completed_at`.
+- `construction` — time series `(jumpgate, timestamp, fabmat, advcct)`, `WITHOUT ROWID`.
+- `factions` — per-reset rows; traits stored as a JSON array.
 
-- `GetAgentHistory(reset, start, end)` / `GetConstructions(reset, start, end)` decode the **entire history** for the reset, then drop records outside `[start, end]`. A week of 5-minute agent snapshots (~2000 files) is held in RAM at once per request — this is the main memory-pressure suspect.
-- Single-file getters (`GetAgentList`, `GetJumpgateList`, `GetStats`, `GetLeaderboard`, `GetFactions`) expect exactly one file to match their prefix.
-- All files opened during a `readData` call stay open until the function returns (`defer` inside the loop).
+**Writes:** every collection cycle is **one transaction** (`inTx`) — a partial cycle can never exist.
+Natural keys (minute-rounded timestamps, reset_date + symbol) use `INSERT OR REPLACE`, so retries are
+idempotent. A failed cycle write is retried with exponential backoff (1s, 2s, 4s … 64s, at most 7
+attempts ≈ 2 min) then dropped loudly: `datastore_write_errors_total` increments and the caller logs.
 
-**Reset handling:** `UpdateReset(r)` sets `currentReset`, builds `resetPath`, creates the directory. `LatestReset()` and `NextReset()` busy-wait (sleep loop) until the collector has set `currentReset` — calling them before the first status fetch blocks.
+**Reads:** getters take time windows (and agent sets) and filter in SQL — nothing on any request path
+allocates proportional to total stored data:
 
-**Consolidation is disabled:** `consolidate.go` exists and would rewrite N history files as one, but its call sites in `GetAgentHistory`/`GetConstructions` are commented out. The `consolidating` flag is still set/cleared pointlessly, and getters busy-wait on it.
+- `GetAgentHistory(reset, start, end, agents)` — `WHERE a.symbol IN (…) AND s.timestamp BETWEEN …`;
+  an empty (non-nil) agent slice returns zero rows (never an all-agents fallback).
+- `GetConstructions(reset, start, end)` — window on `timestamp`.
+- `GetAgentList(reset)` — snapshot join for that reset; empty `reset` means the current one
+  (same convention on all reset-scoped getters).
+- Aggregates: `LatestShips()`, `LatestConstructions()` — `GROUP BY … MAX(timestamp)` instead of
+  a full-window scan.
 
-**Known sharp edges** (see also [Known issues](#known-issues)):
+**Reset handling:** `Reset` is a date key, not a directory. `UpdateReset(r)` flips an in-memory var only.
+`LatestReset()` busy-waits until the collector's first status fetch (unchanged behavior on fresh boot).
 
-- `readData` lists the requested reset's directory but opens files from the *current* reset's path — reads for a non-current reset fail.
-- `GetStats(r)` and `GetJumpgates(r)` ignore their `r` argument and always read the current reset.
-- `StoreStats` dereferences `r.Stats.Accounts` (a `*int`) without a nil check — panics if the API omits `stats.accounts`.
-- `StoreAgents`, `StoreStats`, `StoreLeaderboards` ignore `writeData` errors.
-- The `factions` write/read path is fully dead (never collected).
+**Retention:** keep 5 full game weeks + the current partial week; on the Sunday 13:00 UTC reset
+transition (inside the collector's quiet window) `Prune()` deletes the week that just became
+6th-oldest (`DELETE … WHERE timestamp < newResetStart − 5×7d` on series tables; `reset_date <` that
+date on per-reset tables), then VACUUMs behind a free-space guard (skip when free < 1.25×DB + 32 MiB —
+the ~220 MB of gob leftovers can push the 500 MB PVC short; ENOSPC must never break collection).
+`FLUFFY_RETENTION_WEEKS` (default 5, floor 4) tunes the count. Nothing is ever deleted mid-week.
 
-**Useful helpers:** `SystemFromWaypoint("X1-Y-Z")` → `"X1-Y"`, `DataPath()` → storage root, `AllResets()` → reset-date directory names, newest first.
+**Export:** `/export` streams a `VACUUM INTO` snapshot (consistent, WAL-safe) behind the same
+free-space guard; 503 with a message when the guard trips.
 
 ## Frontend (`internal/frontend/`)
 
@@ -79,7 +102,7 @@ HTTP dashboard on the default mux using `html/template` + `go-echarts/v2`.
 
 **Key files:**
 
-- `frontend.go` — server setup, template parsing (`{FLUFFY_TEMPLATE_DIR}/templates/*.html`), static file serving (`{FLUFFY_STATIC_DIR}/static`, always from disk), the `resets` global refreshed by the `updateResetLoop` goroutine, and `mergeAgents` (reflect-based helper for the agent-selection query params)
+- `frontend.go` — server setup, template parsing (`{FLUFFY_TEMPLATE_DIR}/templates/*.html`), static file serving (`{FLUFFY_STATIC_DIR}/static`, always from disk), and `mergeAgents` (reflect-based helper for the agent-selection query params)
 - `handlers.go` — request handlers; each loads raw data from the datastore once per request, transforms, and nils intermediates for GC
 - `charts.go` — pure transform functions and chart builders; never touch the filesystem
 
@@ -105,8 +128,6 @@ HTTP dashboard on the default mux using `html/template` + `go-echarts/v2`.
 
 **Charts pipeline:** handlers pull raw slices from the datastore → pure transforms in `charts.go` (`agentsMap`, `jumpgatesMap`, `latestShips`, `latestConstructionRecords`, `constructionRecords`, `agentRecordsCredits/Ships` with downsampling to ~50 points/series) → echarts objects → `RenderSnippet()` → injected as `template.HTML` fragments. Inactive agents are identified by `credits == 175000` (starting balance).
 
-The `resets` slice is written by a goroutine and read by handlers without synchronization (data race, benign in practice), and `LoadChartHandler` indexes `resets[0]`, which panics if no reset data exists yet.
-
 ## Data Flow
 
 ### Collection flow
@@ -114,7 +135,7 @@ The `resets` slice is written by a goroutine and read by handlers without synchr
 1. `updateStatus` gets the status document, stores stats + leaderboards, sets the current reset.
 2. Tickers fire `updateAgents` / `updateJumpgates` / `updateInactiveJumpgates` at their intervals.
 3. `Gate.Latch()` serializes all API calls through the two-tier limiter.
-4. Responses are unmarshaled into `datastore` types and written via `writeData` (gob.zst, optional JSON).
+4. Responses are unmarshaled into `datastore` types and written in **one transaction per cycle** (`Store*` → `inTx`), then read back by the frontend in narrow SQL windows.
 
 ### Request flow
 
@@ -135,6 +156,15 @@ The game server resets weekly (from the API's `serverResets.frequency`):
 
 - **Dockerfile**: two-stage build — `golang:1` builder with `CGO_ENABLED=0` (statically linked binary), minimal `alpine` runtime with the binary, `templates/`, `static/`, and CA certs. The build being CGO-free constrains driver choices (see the SQLite migration issue).
 - **Railway**: single container; RAM is the dominant cost, CPU is light except during ingestion and history-heavy page loads. Keep the resident set and per-request spikes low.
+
+### SQLite cutover runbook (one-time)
+
+1. Merge + deploy at the Sunday 13:00 UTC reset boundary — the fresh DB starts with the new game.
+2. The first status fetch of the new reset also triggers the factions fetch; expect a `factions` write in the first cycle logs.
+3. Delete the old `*.gob.zst` reset directories from the PVC in week one (frees ~220 MB). Until then, VACUUM and `/export` may skip with a logged free-space guard — that is intentional (ENOSPC must never starve the collector's writes).
+4. Watch `/debug/vars` for a full reset week: `datastore_write_errors_total` and `datastore_write_retries_total` should be flat zero; `datastore_prune_last_run` advances once per reset. Railway RAM graph: success = flat at the post-bounce floor (~50 MB), no weekly climb.
+5. If the DB exceeds ~250 MB after the first full week, consult the owner about dropping retention to 4 weeks or decimating older weeks (see the design spec). Do not silently reduce retention below 4 weeks.
+
 - **Metrics**: `expvar` counters/durations at `/debug/vars` — collector (`collector_*`), gate (`gate_*`), datastore (`datastore_*`), and per-handler durations (`handler_<name>` with `count`/`total_ms`/`latest_ms`).
 
 ## Environment Variables
@@ -142,27 +172,31 @@ The game server resets weekly (from the API's `serverResets.frequency`):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FLUFFY_PORT` | `8845` | HTTP server port (`:` prefix auto-added if missing) |
-| `FLUFFY_STORAGE_PATH` | `./` | Data storage directory |
+| `FLUFFY_STORAGE_PATH` | `./` | Data directory; the store is `fluffy.db` inside it |
+| `FLUFFY_RETENTION_WEEKS` | `5` | Full game weeks kept (floor 4); pruned at the Sunday reset boundary |
 | `FLUFFY_GATE_BUCKET_SIZE` | `20` | t60 (per-minute) rate limit; t1 limit is hardcoded to 2 in `main.go` |
-| `FLUFFY_WRITE_JSON` | no | Accepts `yes`, `y`, or `true` (case-insensitive) to write JSON alongside `.gob.zst` |
 | `FLUFFY_TEMPLATE_DIR` | `internal/frontend` | Directory containing `templates/` |
 | `FLUFFY_STATIC_DIR` | `internal/frontend` | Directory containing `static/` |
 | `FLUFFY_LOG_LEVEL` | info | Set `debug` or `dbg` to enable `logging.Debug()` output |
 
-> Historical: `FLUFFY_CACHE_DURATION` and `FLUFFY_STATIC_DEV` no longer exist (the cache layer was removed; static serving uses `FLUFFY_STATIC_DIR`).
+> Removed: `FLUFFY_CACHE_DURATION` and `FLUFFY_STATIC_DEV` (old cache layer). `FLUFFY_WRITE_JSON` was retired with the gob.zst store — query JSON with the `sqlite3` CLI instead.
 
 ## Known Issues
 
-Documented so the SQLite migration can address them; also tracked on the internal Forgejo.
+The SQLite migration (forgejo #3/#4/#5/#6/#7) resolved the former datastore issues:
 
-1. **Memory pressure on retrieval** — history getters decompress and decode the *entire* reset history into RAM per request, then filter. Biggest RAM driver and the primary motivation for the SQLite backend.
-2. **Cross-reset reads broken** — `readData` opens files from the current reset path even when asked for another reset.
-3. **FD pressure** — every file opened in `readData`'s loop stays open until the function returns.
-4. **Potential panic in `StoreStats`** — `*r.Stats.Accounts` deref without nil check.
-5. **Ignored write errors** — `StoreAgents`/`StoreStats`/`StoreLeaderboards` return success regardless of `writeData` outcome.
-6. **`resets` data race / `resets[0]` panic risk** in the frontend.
-7. **Dead code** — `updateFactionss` (factions never collected), unreachable most-credits branch in `loopAtReset`, disabled `consolidate()`, unused `TimedAgentRecord`/`resetAgentKey` types and `datastore_cache_resets_total` metric, `GetFactions`/decoder `factions` path.
-8. **Stale Dockerfile comment** — says "scratch", actually uses alpine (fixed in this repo).
+1. ~~Memory pressure on retrieval~~ — **fixed**: history getters query by window (+ agent set) in SQL.
+2. ~~Cross-reset reads broken~~ — **fixed**: reset is a column; `GetStats`/`GetLeaderboard`/`GetAgentList`(etc.) take a reset arg, empty ⇒ latest.
+3. ~~FD pressure~~ — **gone**: there are no per-record files; the store is one DB file.
+4. ~~Panic in `StoreStats` on null `stats.accounts`~~ — **fixed**: nil ⇒ 0.
+5. ~~Ignored write errors~~ — **fixed**: writes return errors, log loudly, count expvar, and retry with backoff.
+6. ~~`resets` data race / `resets[0]` panic~~ — **fixed**: the `resets` global and its goroutine are gone; handlers use `LatestReset()`.
+
+Remaining (non-datastore): none known. Report new ones via forgejo issues.
+
+Historical (pre-migration) notes live in git history.
+
+# Deployment runbook lives below in Deployment.
 
 ## Development
 
@@ -175,19 +209,19 @@ go test ./...                       # tests (only internal/gate has them)
 GO_TEST_LONG=true go test ./internal/gate/...   # long-running gate tests
 go fmt ./...
 go vet ./...
-go run tools/decoder/main.go <file.gob.zst>     # decode a data file to JSON
+sqlite3 "$FLUFFY_STORAGE_PATH/fluffy.db"            # inspect the store (e.g. SELECT * FROM stats)
 ```
 
 No CI workflows exist in this repo.
 
 ### Adding a New Data Type
 
-1. Define the type in `internal/datastore/types.go`.
-2. Add a `Store*` function (call `writeData` with a basename; use timestamp `0` for a latest-snapshot file, real timestamps for time series).
-3. Add a `Get*` function (use `readData` + gob decode).
-4. Add collector logic in `internal/collector/` to fetch and store.
+1. Define the type in `internal/datastore/types.go` and a table in `internal/datastore/schema.go` (bump `user_version` when existing tables change — `applySchema` runs idempotently at open).
+2. Add a `Store*` function inside `inTx`; natural keys should make retries idempotent (`INSERT OR REPLACE` on minute-rounded timestamps / reset-date keys).
+3. Add a `Get*` function with SQL-side filtering (time window / reset / agent set) — never load-then-filter in memory.
+4. Add collector logic in `internal/collector/` to fetch and store (log write errors; `inTx` retries are already counted).
 5. Add frontend handler(s) and route(s) in `internal/frontend/`.
-6. Add a prefix case in `tools/decoder/main.go` so the file type can be inspected.
+6. Inspect data with `sqlite3 "$FLUFFY_STORAGE_PATH/fluffy.db"`.
 
 ### Project Structure
 
@@ -201,13 +235,16 @@ fluffy-robot/
 │   │   ├── api.go          # HTTP client, retries, response types
 │   │   ├── agents.go       # Status, agents, factions (dead)
 │   │   └── jumpgates.go    # Jumpgate discovery + construction tracking
-│   ├── datastore/          # File-based storage (gob.zst / json)
-│   │   ├── datastore.go    # Init, writeData/readData
-│   │   ├── agent.go        # Agent snapshot + history
-│   │   ├── status.go       # Stats, leaderboards, reset helpers
-│   │   ├── jumpgates.go    # Jumpgate list + construction history
-│   │   ├── factions.go      # Dead path (never collected)
-│   │   ├── consolidate.go  # Disabled compaction of history files
+│   ├── datastore/          # Embedded SQLite store (modernc.org/sqlite)
+│   │   ├── datastore.go    # Init, UpdateReset, path helpers
+│   │   ├── store.go        # openDB + pragmas, inTx (bounded retry), freeSpace/dbSize
+│   │   ├── schema.go       # schema v1 DDL (PRAGMA user_version)
+│   │   ├── agent.go        # Agent registry, snapshot, time-windowed history
+│   │   ├── status.go       # Stats, leaderboards, LatestReset
+│   │   ├── jumpgates.go    # Jumpgate list + construction series
+│   │   ├── factions.go     # Per-reset factions (collected once per reset)
+│   │   ├── prune.go        # Weekly 5-week retention prune + guarded VACUUM
+│   │   ├── export.go       # VACUUM INTO snapshot behind free-space guard
 │   │   └── types.go        # Type definitions
 │   ├── frontend/           # HTTP frontend
 │   │   ├── frontend.go     # Server, routes, templates, static
@@ -218,6 +255,5 @@ fluffy-robot/
 │   ├── gate/               # Rate limiting (t1/t60) + tests
 │   ├── logging/            # fmt.Println-based logging
 │   └── metrics/            # expvar counters
-├── tools/decoder/           # gob.zst → JSON decoder for data files
-└── docs/                   # INTERNAL.md (this guide)
+└── docs/                   # INTERNAL.md + superpowers spec/plan
 ```
