@@ -64,7 +64,7 @@ func LoadChartHandler(w http.ResponseWriter, r *http.Request) {
 
 	thisReset := ds.Reset(resets[0])
 
-	agentHist, _ := ds.GetAgentHistory(thisReset, startTime, 0)
+	agentHist, _ := ds.GetAgentHistory(thisReset, startTime, 0, nil)
 	jgList, _ := ds.GetJumpgateList(thisReset)
 	constrList, _ := ds.GetConstructions(thisReset, startTime, 0)
 
@@ -453,7 +453,7 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 	thisReset := ds.LatestReset()
 
 	aList, _ := ds.GetAgentList(thisReset)
-	agentHist, _ := ds.GetAgentHistory(thisReset, 0, 0)
+	agentHist, _ := ds.GetAgentHistory(thisReset, 0, 0, nil)
 	jgList, _ := ds.GetJumpgateList(thisReset)
 	constrList, _ := ds.GetConstructions(thisReset, 0, 0)
 
