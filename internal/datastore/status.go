@@ -1,126 +1,151 @@
 package datastore
 
 import (
-	"encoding/gob"
+	"database/sql"
 	"fmt"
-	"os"
-	"sort"
 	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
 
+// StoreStats upserts the status row for the current reset. A missing
+// stats.accounts from the API becomes 0 instead of panicking (#5).
 func StoreStats(r ResponseStatus) error {
-	st := Stats{
-		Reset:        r.ResetDate,
-		MarketUpdate: r.Health.LastMarketUpdate,
-		Agents:       r.Stats.Agents,
-		Accounts:     *r.Stats.Accounts,
-		Ships:        r.Stats.Ships,
-		Systems:      r.Stats.Systems,
-		Waypoints:    r.Stats.Waypoints,
-		Status:       r.Status,
-		Version:      r.Version,
-		NextReset:    r.ServerResets.Next,
-		LastUpdate:   time.Now(),
+	accounts := 0
+	if r.Stats.Accounts != nil {
+		accounts = *r.Stats.Accounts
 	}
-	writeData("stats", 0, st)
-	return nil
+	return inTx(func(tx *sql.Tx) error {
+		_, err := tx.Exec(`INSERT OR REPLACE INTO stats
+			(reset_date, market_update, agents, accounts, ships, systems, waypoints,
+			 status, version, next_reset, last_update)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			r.ResetDate, r.Health.LastMarketUpdate.Unix(), r.Stats.Agents, accounts,
+			r.Stats.Ships, r.Stats.Systems, r.Stats.Waypoints,
+			r.Status, r.Version, r.ServerResets.Next.Unix(), time.Now().Unix())
+		return err
+	})
 }
 
+// StoreLeaderboards replaces the current reset's leaderboard rows
+// (latest fetch wins). Credits and charts are separate kinds, keyed by
+// rank within the reset.
 func StoreLeaderboards(r ResponseStatus) error {
-	ldrbd := LeaderboardRecord{}
-	ldrbd.ChartsList = []LeaderboardEntry{}
-	for _, x := range r.Leaderboards.MostSubmittedCharts {
-		ldrbd.ChartsList = append(ldrbd.ChartsList,
-			LeaderboardEntry{
-				Symbol: x.AgentSymbol,
-				Value:  int64(x.ChartCount),
-			},
-		)
-	}
-	ldrbd.CreditsList = []LeaderboardEntry{}
-	for _, x := range r.Leaderboards.MostCredits {
-		ldrbd.CreditsList = append(ldrbd.CreditsList,
-			LeaderboardEntry{
-				Symbol: x.AgentSymbol,
-				Value:  int64(x.Credits),
-			},
-		)
-	}
-
-	writeData("leaderboard", 0, ldrbd)
-
-	return nil
+	return inTx(func(tx *sql.Tx) error {
+		if _, err := tx.Exec(`DELETE FROM leaderboards WHERE reset_date = ?`, r.ResetDate); err != nil {
+			return err
+		}
+		ins, err := tx.Prepare(`INSERT OR REPLACE INTO leaderboards (reset_date, kind, rank, symbol, value) VALUES (?, ?, ?, ?, ?)`)
+		if err != nil {
+			return err
+		}
+		defer ins.Close()
+		for i, x := range r.Leaderboards.MostSubmittedCharts {
+			if _, err := ins.Exec(r.ResetDate, "charts", i+1, x.AgentSymbol, int64(x.ChartCount)); err != nil {
+				return err
+			}
+		}
+		for i, x := range r.Leaderboards.MostCredits {
+			if _, err := ins.Exec(r.ResetDate, "credits", i+1, x.AgentSymbol, x.Credits); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
-func GetStats(thisReset Reset) (Stats, error) {
+// GetStats returns the status row for the given reset; empty reset means
+// the latest one. Cross-reset reads work (#4 fix: reset is a column).
+func GetStats(reset Reset) (Stats, error) {
 	res := Stats{}
-	m, err := readData("stats.", "")
+	resetArg := string(reset)
+	if resetArg == "" {
+		resetArg = string(currentReset)
+		if resetArg == "" {
+			// Fresh boot, pre-first-status: no resets yet. Return empty
+			// rather than a confusing SQL error.
+			return res, nil
+		}
+	}
+	var marketUpdate, nextReset, lastUpdate int64
+	err := db.QueryRow(`SELECT reset_date, market_update, agents, accounts, ships,
+		systems, waypoints, status, version, next_reset, last_update
+		FROM stats WHERE reset_date = ?`, resetArg).Scan(
+		&res.Reset, &marketUpdate, &res.Agents, &res.Accounts, &res.Ships,
+		&res.Systems, &res.Waypoints, &res.Status, &res.Version, &nextReset, &lastUpdate)
+	if err == sql.ErrNoRows {
+		return res, fmt.Errorf("no stats for reset %q", resetArg)
+	}
 	if err != nil {
 		return res, err
 	}
-
-	if len(m) != 1 {
-		return res, fmt.Errorf("invalid read")
-	}
-
-	for _, b := range m {
-		gobDec := gob.NewDecoder(b)
-		if err := gobDec.Decode(&res); err != nil {
-			return res, err
-		}
-	}
-	m = nil
+	res.MarketUpdate = time.Unix(marketUpdate, 0)
+	res.NextReset = time.Unix(nextReset, 0)
+	res.LastUpdate = time.Unix(lastUpdate, 0)
 	return res, nil
 }
 
-func GetLeaderboard(thisReset Reset) ([]LeaderboardEntry, []LeaderboardEntry, error) {
-	res := LeaderboardRecord{}
-	m, err := readData("leaderboard.", thisReset)
+// GetLeaderboard returns (credits, charts) ranked lists for the given
+// reset; empty reset means the latest one.
+func GetLeaderboard(reset Reset) ([]LeaderboardEntry, []LeaderboardEntry, error) {
+	resetArg := string(reset)
+	if resetArg == "" {
+		resetArg = string(currentReset)
+		if resetArg == "" {
+			return nil, nil, nil
+		}
+	}
+	rows, err := db.Query(`SELECT kind, symbol, value FROM leaderboards
+		WHERE reset_date = ? ORDER BY kind, rank`, resetArg)
 	if err != nil {
-		logging.Error("Failed to read file", err)
 		return nil, nil, err
 	}
-
-	if len(m) != 1 {
-		return nil, nil, fmt.Errorf("invalid read")
-	}
-
-	for _, b := range m {
-		gobDec := gob.NewDecoder(b)
-		if err := gobDec.Decode(&res); err != nil {
-			logging.Error("error decoding gob", err)
+	defer rows.Close()
+	credits := []LeaderboardEntry{}
+	charts := []LeaderboardEntry{}
+	for rows.Next() {
+		var kind string
+		var e LeaderboardEntry
+		if err := rows.Scan(&kind, &e.Symbol, &e.Value); err != nil {
 			return nil, nil, err
 		}
-	}
-	m = nil
-	return res.CreditsList, res.ChartsList, nil
-}
-
-func AllResets() []string {
-	resets := []string{}
-	files, err := os.ReadDir(path)
-	if err != nil {
-		logging.Error("Failed to read resets directory", err)
-		return resets
-	}
-
-	for _, f := range files {
-		if f.IsDir() {
-			resets = append(resets, f.Name())
+		if kind == "credits" {
+			credits = append(credits, e)
+		} else {
+			charts = append(charts, e)
 		}
 	}
-	sort.Slice(resets, func(i, j int) bool {
-		return resets[i] > resets[j]
-	})
-	return resets
+	if err := rows.Err(); err != nil {
+		return nil, nil, err
+	}
+	return credits, charts, nil
 }
 
+// AllResets returns every reset date stored, newest first.
+func AllResets() []string {
+	rows, err := db.Query(`SELECT DISTINCT reset_date FROM stats ORDER BY reset_date DESC`)
+	if err != nil {
+		logging.Error("AllResets:", err)
+		return []string{}
+	}
+	defer rows.Close()
+	res := []string{}
+	for rows.Next() {
+		var d string
+		if err := rows.Scan(&d); err != nil {
+			logging.Error("AllResets scan:", err)
+			return []string{}
+		}
+		res = append(res, d)
+	}
+	return res
+}
+
+// LatestReset busy-waits until the collector has set currentReset — same
+// behavior as the old path (blocks on fresh boot until the first status).
 func LatestReset() Reset {
 	for {
 		if currentReset == "" {
-			// logging.Debug("reset is not updated yet")
 			time.Sleep(time.Second)
 		} else {
 			break
@@ -129,10 +154,11 @@ func LatestReset() Reset {
 	return currentReset
 }
 
+// NextReset reads the next-reset timestamp from the current reset's stats
+// row. Preserved for now; deleted if unreferenced at Task 11.
 func NextReset() time.Time {
 	for {
 		if currentReset == "" {
-			// logging.Debug("reset is not updated yet")
 			time.Sleep(time.Second)
 		} else {
 			break
