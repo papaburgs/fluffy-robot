@@ -545,3 +545,79 @@ func AgentsGridHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	metrics.RecordDuration("agents_grid", start)
 }
+
+type FactionRow struct {
+	Symbol string
+	Name   string
+	Color  string
+	Count  int
+}
+
+type SharedSystemRow struct {
+	System string
+	Count  int
+	Agents string
+}
+
+func FactionsHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+
+	aList, err := ds.GetAgentList(ds.LatestReset())
+	if err != nil {
+		logging.Error("error loading agents", err)
+	}
+
+	factionCount := make(map[string]int)
+	systemAgents := make(map[string][]string)
+	for _, a := range aList {
+		factionCount[a.Faction]++
+		systemAgents[a.System] = append(systemAgents[a.System], a.Symbol)
+	}
+
+	frows := make([]FactionRow, 0, len(factionCount))
+	for sym, count := range factionCount {
+		fi, ok := factionMap[sym]
+		name, color := sym, "#666"
+		if ok {
+			name, color = fi.Name, fi.Color
+		}
+		frows = append(frows, FactionRow{Symbol: sym, Name: name, Color: color, Count: count})
+	}
+	sort.Slice(frows, func(i, j int) bool {
+		if frows[i].Count != frows[j].Count {
+			return frows[i].Count > frows[j].Count
+		}
+		return frows[i].Name < frows[j].Name
+	})
+
+	srows := []SharedSystemRow{}
+	for system, agents := range systemAgents {
+		if len(agents) < 2 {
+			continue
+		}
+		sort.Strings(agents)
+		srows = append(srows, SharedSystemRow{
+			System: system,
+			Count:  len(agents),
+			Agents: strings.Join(agents, ", "),
+		})
+	}
+	sort.Slice(srows, func(i, j int) bool {
+		if srows[i].Count != srows[j].Count {
+			return srows[i].Count > srows[j].Count
+		}
+		return srows[i].System < srows[j].System
+	})
+
+	aList = nil
+	factionCount = nil
+	systemAgents = nil
+
+	if err := t.ExecuteTemplate(w, "factions.html", map[string]interface{}{
+		"Factions":      frows,
+		"SharedSystems": srows,
+	}); err != nil {
+		logging.Error("template error", err)
+	}
+	metrics.RecordDuration("factions", start)
+}
