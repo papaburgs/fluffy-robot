@@ -375,6 +375,15 @@ var factionMap = map[string]factionInfo{
 	"OBSIDIAN": {Symbol: "OBSIDIAN", Name: "Obsidian Syndicate", Color: "#2F2F2F"},
 	"AEGIS":    {Symbol: "AEGIS", Name: "Aegis Collective", Color: "#4682B4"},
 	"UNITED":   {Symbol: "UNITED", Name: "United Independent Settlements", Color: "#228B22"},
+	"SOLITARY": {Symbol: "SOLITARY", Name: "Solitary Systems Alliance", Color: "#FF7F50"},
+	"COBALT":   {Symbol: "COBALT", Name: "Cobalt Traders Alliance", Color: "#1E90FF"},
+	"OMEGA":    {Symbol: "OMEGA", Name: "Omega Star Network", Color: "#FF00FF"},
+	"ECHO":     {Symbol: "ECHO", Name: "Echo Technological Conclave", Color: "#00FA9A"},
+	"LORDS":    {Symbol: "LORDS", Name: "Lords of the Void", Color: "#FFFFFF"},
+	"CULT":     {Symbol: "CULT", Name: "Cult of the Machine", Color: "#A52A2A"},
+	"ANCIENTS": {Symbol: "ANCIENTS", Name: "Ancient Guardians", Color: "#DFFF00"},
+	"SHADOW":   {Symbol: "SHADOW", Name: "Shadow Stalkers", Color: "#483D8B"},
+	"ETHEREAL": {Symbol: "ETHEREAL", Name: "Ethereal Enclave", Color: "#40E0D0"},
 }
 
 type AgentRow struct {
