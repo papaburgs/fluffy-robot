@@ -1,0 +1,50 @@
+<div class="factions-container">
+    <h2>Factions</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Faction</th>
+                <th>Agents</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $element := .Factions}}
+            <tr>
+                <td>
+                    <span class="faction-swatch" style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background-color: {{$element.Color}}; margin-right: 6px"></span>
+                    {{$element.Name}}
+                </td>
+                <td>
+                    {{$element.Count}}
+                </td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+
+    <h2>Shared Home Systems</h2>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>System</th>
+                <th>Agents</th>
+            </tr>
+        </thead>
+        <tbody>
+            {{range $element := .SharedSystems}}
+            <tr>
+                <td>
+                    {{$element.System}}
+                </td>
+                <td>
+                    {{$element.Agents}}
+                </td>
+            </tr>
+            {{else}}
+            <tr>
+                <td colspan="2">No shared home systems</td>
+            </tr>
+            {{end}}
+        </tbody>
+    </table>
+</div>

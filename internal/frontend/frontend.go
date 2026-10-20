@@ -71,6 +71,7 @@ func StartServer() {
 	http.HandleFunc("/leaderboard", LeaderboardHandler)
 	http.HandleFunc("/stats", StatsHandler)
 	http.HandleFunc("/jumpgates", JumpgatesHandler)
+	http.HandleFunc("/factions", FactionsHandler)
 
 	http.HandleFunc("/export", ExportHandler)
 
