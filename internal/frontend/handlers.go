@@ -563,9 +563,11 @@ type FactionRow struct {
 }
 
 type SharedSystemRow struct {
-	System string
-	Count  int
-	Agents string
+	Faction string
+	Color   string
+	System  string
+	Count   int
+	Agents  string
 }
 
 func FactionsHandler(w http.ResponseWriter, r *http.Request) {
@@ -576,11 +578,19 @@ func FactionsHandler(w http.ResponseWriter, r *http.Request) {
 		logging.Error("error loading agents", err)
 	}
 
+	type factionSystem struct {
+		faction string
+		system  string
+	}
+
 	factionCount := make(map[string]int)
-	systemAgents := make(map[string][]string)
+	systemCount := make(map[string]int)
+	factionSystemAgents := make(map[factionSystem][]string)
 	for _, a := range aList {
 		factionCount[a.Faction]++
-		systemAgents[a.System] = append(systemAgents[a.System], a.Symbol)
+		systemCount[a.System]++
+		key := factionSystem{faction: a.Faction, system: a.System}
+		factionSystemAgents[key] = append(factionSystemAgents[key], a.Symbol)
 	}
 
 	frows := make([]FactionRow, 0, len(factionCount))
@@ -600,18 +610,27 @@ func FactionsHandler(w http.ResponseWriter, r *http.Request) {
 	})
 
 	srows := []SharedSystemRow{}
-	for system, agents := range systemAgents {
-		if len(agents) < 2 {
+	for key, agents := range factionSystemAgents {
+		if systemCount[key.system] < 2 {
 			continue
 		}
 		sort.Strings(agents)
+		color := "#666"
+		if fi, ok := factionMap[key.faction]; ok {
+			color = fi.Color
+		}
 		srows = append(srows, SharedSystemRow{
-			System: system,
-			Count:  len(agents),
-			Agents: strings.Join(agents, ", "),
+			Faction: key.faction,
+			Color:   color,
+			System:  key.system,
+			Count:   len(agents),
+			Agents:  strings.Join(agents, ", "),
 		})
 	}
 	sort.Slice(srows, func(i, j int) bool {
+		if srows[i].Faction != srows[j].Faction {
+			return srows[i].Faction < srows[j].Faction
+		}
 		if srows[i].Count != srows[j].Count {
 			return srows[i].Count > srows[j].Count
 		}
@@ -620,7 +639,8 @@ func FactionsHandler(w http.ResponseWriter, r *http.Request) {
 
 	aList = nil
 	factionCount = nil
-	systemAgents = nil
+	systemCount = nil
+	factionSystemAgents = nil
 
 	if err := t.ExecuteTemplate(w, "factions.html", map[string]interface{}{
 		"Factions":      frows,
