@@ -9,6 +9,11 @@ This application collects and displays:
 - **Public Agent Data** - Agent statistics, ship counts, and credits
 - **Jumpgate Information** - Jumpgate statuses and construction progress
 - **Server Statistics** - Game server stats and reset information
+- **Faction Summary** - Duplicate home systems and count by faction
+
+## Current limitations
+- Only Display current reset, no history, although a month of resets is stored, future goal is to have it there
+- Construction of jumpgate might be up to 4 hours behind, only currently known _builders_ are tracked, inactive agents and non building agents are not updated frequently to save api calls
 
 ## Architecture
 
