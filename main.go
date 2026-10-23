@@ -16,6 +16,7 @@ import (
 func main() {
 	logging.InitLogger()
 
+	// comment change to bump deployment after outage
 	gateBucketSize, err := strconv.Atoi(os.Getenv("FLUFFY_GATE_BUCKET_SIZE"))
 	if err != nil {
 		logging.Error("error parsing FLUFFY_GATE_BUCKET_SIZE, defaulting to 20", "error", err)
