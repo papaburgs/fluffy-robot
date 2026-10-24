@@ -2,6 +2,7 @@ package frontend
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -114,5 +115,15 @@ func TestBuildTreeData(t *testing.T) {
 	}
 	if got := d.Children[0].Children[0].Name; got != "IRON_ORE" {
 		t.Fatalf("grandchild = %q, want IRON_ORE", got)
+	}
+}
+
+func TestSupplyChainChart_SnippetPins(t *testing.T) {
+	root := buildNeedsTree(testChain(), "FAB_MATS")
+	snippet := SupplyChainChart(root, "Requirements for FAB_MATS", "RL").RenderSnippet()
+	for _, want := range []string{`"orient":"RL"`, `"roam":true`, `"initialTreeDepth":-1`, "IRON_ORE"} {
+		if !strings.Contains(snippet.Script, want) {
+			t.Errorf("snippet missing %q", want)
+		}
 	}
 }

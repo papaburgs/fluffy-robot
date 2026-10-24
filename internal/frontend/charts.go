@@ -399,3 +399,32 @@ func buildTreeData(n *chainNode) opts.TreeData {
 	}
 	return d
 }
+
+// SupplyChainChart builds the ECharts tree for a supply chain node:
+// orient "RL" for needs mode (root rightmost), "LR" for products mode.
+func SupplyChainChart(root *chainNode, title, orient string) *charts.Tree {
+	tree := charts.NewTree()
+	tree.SetGlobalOptions(
+		charts.WithInitializationOpts(opts.Initialization{
+			Theme:  "dark",
+			Width:  "100%",
+			Height: "750",
+		}),
+		charts.WithTitleOpts(opts.Title{
+			Title: title,
+		}),
+		charts.WithTooltipOpts(opts.Tooltip{
+			Show:    opts.Bool(true),
+			Trigger: "item",
+		}),
+	)
+	tree.AddSeries(root.Name, []opts.TreeData{buildTreeData(root)},
+		charts.WithTreeOpts(opts.TreeChart{
+			Layout:           "orthogonal",
+			Orient:           orient,
+			Roam:             opts.Bool(true), // pan/zoom for deep chains
+			InitialTreeDepth: -1,              // fully expanded
+		}),
+	)
+	return tree
+}
