@@ -341,3 +341,61 @@ type ChartPageData struct {
 func RenderChartFragment(w io.Writer, data ChartPageData) error {
 	return t.ExecuteTemplate(w, "chart.html", data)
 }
+
+// explosivesGood is never expanded in a supply chain tree: its subtree
+// introduces extra noise. Spec rule, applies in both modes and to the root.
+const explosivesGood = "EXPLOSIVES"
+
+// chainNode is one node of a supply chain tree.
+type chainNode struct {
+	Name     string
+	Children []*chainNode
+}
+
+// buildChainNode walks adj (good → dependencies) building the tree for good.
+// Stop rules: explosivesGood is always a leaf; a good already on the current
+// root→node path is shown as a leaf, not expanded again (cycle guard).
+func buildChainNode(adj map[string][]string, good string, onPath map[string]bool) *chainNode {
+	node := &chainNode{Name: good}
+	if good == explosivesGood || onPath[good] {
+		return node
+	}
+	onPath[good] = true
+	for _, dep := range adj[good] {
+		node.Children = append(node.Children, buildChainNode(adj, dep, onPath))
+	}
+	delete(onPath, good) // DFS backtrack: siblings may repeat a good in their own branches
+	return node
+}
+
+func buildChainTree(adj map[string][]string, good string) *chainNode {
+	return buildChainNode(adj, good, map[string]bool{})
+}
+
+// buildNeedsTree returns the "what do I need to produce good" tree:
+// children are good's imports, recursively.
+func buildNeedsTree(chain map[string][]string, good string) *chainNode {
+	return buildChainTree(chain, good)
+}
+
+// chainGoods lists the goods selectable for a mode. Mode "needs" (and any
+// unknown mode) lists export symbols — things you can produce. The
+// "products" branch is added in phase 2.
+func chainGoods(chain map[string][]string, mode string) []string {
+	goods := make([]string, 0, len(chain))
+	for exp := range chain {
+		goods = append(goods, exp)
+	}
+	sort.Strings(goods)
+	return goods
+}
+
+// buildTreeData converts a chainNode into the go-echarts tree data shape.
+func buildTreeData(n *chainNode) opts.TreeData {
+	d := opts.TreeData{Name: n.Name}
+	for _, c := range n.Children {
+		child := buildTreeData(c)
+		d.Children = append(d.Children, &child)
+	}
+	return d
+}
