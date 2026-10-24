@@ -1,0 +1,31 @@
+<h2>Supply Chain</h2>
+
+<div class="controls-container">
+    <label class="select-label">Mode:
+        <select name="mode"
+                hx-get="/supply-chain"
+                hx-target="#content-area"
+                hx-include="[name='good']">
+            <option value="needs"{{if eq .Mode "needs"}} selected{{end}}>What do I need to produce…</option>
+        </select>
+    </label>
+    <label class="select-label">Good:
+        <select name="good"
+                hx-get="/supply-chain"
+                hx-target="#content-area"
+                hx-include="[name='mode']">
+            <option value="">Select a good…</option>
+            {{$g := .Good}}{{range .Goods}}<option value="{{.}}"{{if eq . $g}} selected{{end}}>{{.}}</option>{{end}}
+        </select>
+    </label>
+</div>
+
+{{if not .Collected}}
+<p>Supply chain data has not been collected yet; it appears after the next collector tick.</p>
+{{else if .Chart.Element}}
+<div class="chart-scroll-wrapper">
+  <div>{{ .Chart.Element }} {{ .Chart.Script }}</div>
+</div>
+{{else}}
+<p>Select a good to see its supply chain.</p>
+{{end}}

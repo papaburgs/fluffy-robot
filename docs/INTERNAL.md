@@ -124,6 +124,7 @@ HTTP dashboard on the default mux using `html/template` + `go-echarts/v2`.
 | `/stats` | StatsHandler | Server statistics |
 | `/jumpgates` | JumpgatesHandler | Jumpgate construction parallel chart |
 | `/chart` | LoadChartHandler | Credit/ship/construction charts (`?period=24h\|4h\|7d\|1h`, agent lists via `storageAgents`/`paramAgents`) |
+| `/supply-chain` | SupplyChainHandler | Supply chain tree (`?mode=needs`, `?good=SYMBOL`) |
 | `/status` | HeaderHandler | Status header |
 | `/export` | ExportHandler | Streams a consistent `fluffy.db` snapshot (`VACUUM INTO`, free-space guarded; 503 when short) |
 | `/static/*` | http.FileServer | Static assets |

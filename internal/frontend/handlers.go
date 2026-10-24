@@ -650,3 +650,44 @@ func FactionsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	metrics.RecordDuration("factions", start)
 }
+
+func SupplyChainHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	q := r.URL.Query()
+	mode := q.Get("mode")
+	if mode != "needs" {
+		mode = "needs" // phase 2 adds "products"
+	}
+	good := q.Get("good")
+
+	chain, err := ds.GetSupplyChain()
+	if err != nil {
+		logging.Error("error loading supply chain", err)
+		chain = map[string][]string{}
+	}
+
+	data := struct {
+		Mode      string
+		Good      string
+		Goods     []string
+		Chart     ChartSnippet
+		Collected bool
+	}{Mode: mode, Good: good, Goods: chainGoods(chain, mode), Collected: len(chain) > 0}
+
+	if good != "" && len(chain) > 0 {
+		root := buildNeedsTree(chain, good)
+		snippet := SupplyChainChart(root, "Requirements for "+good, "RL").RenderSnippet()
+		data.Chart = ChartSnippet{
+			Element: template.HTML(snippet.Element),
+			Script:  template.HTML(snippet.Script),
+		}
+	}
+
+	chain = nil // GC convention
+
+	w.Header().Set("Content-Type", "text/html")
+	if err := t.ExecuteTemplate(w, "supplychain.html", data); err != nil {
+		logging.Error("template error", err)
+	}
+	metrics.RecordDuration("supply_chain", start)
+}
