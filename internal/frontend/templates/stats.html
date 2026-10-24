@@ -1,41 +1,67 @@
 <div class="stats-container">
     <h2>Server Stats</h2>
-    <div class="stats-grid">
-        <div class="stat-card">
-            <h3>Status</h3>
-            <p>{{.Status}}</p>
+    {{$status := statusBadge .Status}}
+
+    <div class="stats-chips">
+        <span class="status-badge {{$status.Class}}">
+            <span class="status-dot"></span>{{$status.Label}}
+        </span>
+        {{if timeUntil .NextReset}}
+        <span class="stat-chip">Next reset in <strong>{{timeUntil .NextReset}}</strong></span>
+        {{end}}
+    </div>
+
+    <div class="stats-tiles">
+        <div class="stat-tile">
+            <span class="stat-tile-label">Agents</span>
+            <span class="stat-tile-value">{{.Agents}}</span>
         </div>
-        <div class="stat-card">
-            <h3>Version</h3>
-            <p>{{.Version}}</p>
+        <div class="stat-tile">
+            <span class="stat-tile-label">Accounts</span>
+            <span class="stat-tile-value">{{.Accounts}}</span>
         </div>
-        <div class="stat-card">
-            <h3>Reset Date</h3>
-            <p>{{.Reset}}</p>
+        <div class="stat-tile">
+            <span class="stat-tile-label">Ships</span>
+            <span class="stat-tile-value">{{.Ships}}</span>
         </div>
-        <div class="stat-card">
-            <h3>Next Reset</h3>
-            <p>{{.NextReset}}</p>
+        <div class="stat-tile">
+            <span class="stat-tile-label">Systems</span>
+            <span class="stat-tile-value">{{.Systems}}</span>
         </div>
-        <div class="stat-card">
-            <h3>Agents</h3>
-            <p>{{.Agents}}</p>
-        </div>
-        <div class="stat-card">
-            <h3>Ships</h3>
-            <p>{{.Ships}}</p>
-        </div>
-        <div class="stat-card">
-            <h3>Systems</h3>
-            <p>{{.Systems}}</p>
-        </div>
-        <div class="stat-card">
-            <h3>Waypoints</h3>
-            <p>{{.Waypoints}}</p>
-        </div>
-        <div class="stat-card">
-            <h3>Last Market Update</h3>
-            <p>{{.MarketUpdate}}</p>
+        <div class="stat-tile">
+            <span class="stat-tile-label">Waypoints</span>
+            <span class="stat-tile-value">{{.Waypoints}}</span>
         </div>
     </div>
+
+    <table class="data-table stats-table">
+        <thead>
+            <tr>
+                <th>Metric</th>
+                <th>Value</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Version</td>
+                <td>{{.Version}}</td>
+            </tr>
+            <tr>
+                <td>Reset Date</td>
+                <td>{{fmtReset .Reset}}</td>
+            </tr>
+            <tr>
+                <td>Next Reset</td>
+                <td>{{fmtTime .NextReset}}</td>
+            </tr>
+            <tr>
+                <td>Last Market Update</td>
+                <td>{{fmtTime .MarketUpdate}}</td>
+            </tr>
+            <tr>
+                <td>Last Update</td>
+                <td>{{fmtTime .LastUpdate}}</td>
+            </tr>
+        </tbody>
+    </table>
 </div>

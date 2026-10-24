@@ -15,8 +15,9 @@ import (
 
 var t *template.Template
 
-func StartServer() {
-	funcMap := template.FuncMap{
+// templateFuncs are the helpers available to every template.
+func templateFuncs() template.FuncMap {
+	return template.FuncMap{
 		"add": func(a, b int) int {
 			return a + b
 		},
@@ -37,7 +38,15 @@ func StartServer() {
 				return "Unknown"
 			}
 		},
+		"statusBadge": statusBadge,
+		"fmtTime":     fmtTime,
+		"fmtReset":    fmtReset,
+		"timeUntil":   timeUntil,
 	}
+}
+
+func StartServer() {
+	funcMap := templateFuncs()
 
 	templateDir := "internal/frontend"
 	if env, ok := os.LookupEnv("FLUFFY_TEMPLATE_DIR"); ok {
