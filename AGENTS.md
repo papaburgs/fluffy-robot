@@ -25,6 +25,7 @@ No CI workflows exist in this repo.
 | `FLUFFY_AGENT_TICK` | `5m` | Agent + status collection interval (Go duration syntax, e.g. `30s`) |
 | `FLUFFY_JUMPGATE_TICK` | `30m` | Jumpgate (under construction) progress interval |
 | `FLUFFY_CONSTRUCTION_TICK` | `4h` | Scan for newly-started jumpgate construction |
+| `FLUFFY_SUPPLY_TICK` | `24h` | Supply chain refresh check (no-op once collected) |
 | `FLUFFY_RETENTION_WEEKS` | `5` | Full game weeks kept in the DB (floor 4); older weeks pruned at the Sunday reset boundary |
 | `FLUFFY_TEMPLATE_DIR` | `internal/frontend` | Directory containing `templates/` |
 | `FLUFFY_STATIC_DIR` | `internal/frontend` | Directory containing `static/` |
@@ -38,7 +39,7 @@ Collector ──▶ Datastore ◀── Frontend (HTTP)
     └─────── SpaceTraders API ──┘
 ```
 
-- **Collector** (`internal/collector/`): Gathers data on scheduled intervals (agents: 5m, jumpgates: 30m, construction: 4h). No auth token needed — all public API. Base URL is hardcoded in `main.go`: `https://api.spacetraders.io/v2`.
+- **Collector** (`internal/collector/`): Gathers data on scheduled intervals (agents: 5m, jumpgates: 30m, construction: 4h, supply chain: 24h check). No auth token needed — all public API. Base URL is hardcoded in `main.go`: `https://api.spacetraders.io/v2`.
 - **Datastore** (`internal/datastore/`): Embedded **SQLite** (driver `modernc.org/sqlite` — pure Go; the build stays `CGO_ENABLED=0`). One file: `{FLUFFY_STORAGE_PATH}/fluffy.db`, one process-wide `*sql.DB`, WAL + `synchronous=FULL`. Reset is a column, not a directory. Every collection cycle is a single transaction; failed cycle writes retry with bounded backoff (1s, 2s … 32s on the six retries, ≈1 min total, 7 attempts) before being dropped loudly (`datastore_write_errors_total`). Time-series getters take `start, end` (plus an agent-set filter for `GetAgentHistory`); pass `0, 0` for all data. `LatestReset()` busy-waits until the collector's first status fetch.
 - **Frontend** (`internal/frontend/`): HTTP dashboard using `html/template` and `go-echarts/v2`. Handlers load raw data from datastore once per request, then call pure transform functions (`agentsMap`, `jumpgatesMap`, `latestConstructionRecords`, etc.) defined in `charts.go`. Transform functions never touch the filesystem — they only reshape in-memory data. Intermediate lists are nil'd out for GC.
 - **Gate** (`internal/gate/`): Rate limiter for SpaceTraders API calls. Two-tier: t1 (per-second) and t60 (per-minute) with bucket capacity.
@@ -49,7 +50,7 @@ Startup in `main.go`: `logging.InitLogger()` → `datastore.Init()` → 1s sleep
 
 ## Data Format
 
-Primary: one SQLite database (`fluffy.db`; `modernc.org/sqlite`, WAL mode). Tables: `agents` (symbol registry), `agent_snapshots` (per-reset latest), `agent_status` / `construction` (time series, `WITHOUT ROWID`), `stats`, `leaderboards`, `jumpgates`, `factions`. The weekly retention prune (=5 weeks) runs at the Sunday 13:00 UTC reset boundary.
+Primary: one SQLite database (`fluffy.db`; `modernc.org/sqlite`, WAL mode). Tables: `agents` (symbol registry), `agent_snapshots` (per-reset latest), `agent_status` / `construction` (time series, `WITHOUT ROWID`), `stats`, `leaderboards`, `jumpgates`, `factions`, `supply_chain` (fetch-once static export→imports map, not reset-scoped). The weekly retention prune (=5 weeks) runs at the Sunday 13:00 UTC reset boundary.
 
 ## Conventions
 

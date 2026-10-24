@@ -28,6 +28,7 @@ Scheduled intervals (`collector.go`):
 | Agents | 5 min | `updateStatus` + `updateAgents` (re-aims reset timer) |
 | Jumpgates | 30 min | `updateJumpgates` (systems under construction) |
 | Construction | 4 h | `updateInactiveJumpgates` (systems not yet started) |
+| Supply chain | 24 h | `updateSupplyChain` (no-op once the static chain is collected) |
 
 **Key files:**
 
@@ -35,6 +36,7 @@ Scheduled intervals (`collector.go`):
 - `api.go` — `doGET` HTTP client with retries: up to 5 retries on 429 (also calls `gate.Lock()` to block the rate limiter for a window), up to 3 retries on other errors; a new `http.Client` per call, but they share `http.DefaultTransport`, so connection pooling still applies
 - `agents.go` — `updateStatus` (GET `/`: stores stats + leaderboards, sets current reset), `updateAgents` (paginates `/agents?limit=20`, stores agent snapshot + status history, then `updateJumpgatesFromAgents`). Also `updateFactionss` — **dead code, never called**; no faction data is ever collected
 - `jumpgates.go` — discovers jumpgate waypoint per agent system (`findJumpgateSymbol`), tracks construction progress (`fetchConstructionStatus`), marks systems `Active`/`Const`/`Complete`, and writes synthetic 1600 FAB_MATS / 400 ADVANCED_CIRCUITRY records for completed gates so charts keep updating
+- `supplychain.go` — `updateSupplyChain`: fetches the global supply chain (export→imports map) from `GET /market/supply-chain` exactly once. Gated on `SupplyChainExists()`; an empty/absent `exportToImportMap` is logged and not stored (next tick retries from scratch). Runs once at startup (non-fatal on error) and on its own ticker; success bumps `collector_supply_chain_updates_total`
 
 Reset detection (`loopAtReset`): stops all tickers, sleeps 3 min, then polls the status endpoint once a minute until `resetDate` is today AND the most-submitted-charts leaderboard is empty. Note: the trailing most-credits check in that loop is unreachable (the charts-empty branch returns first) — dead code kept for reference.
 
@@ -54,7 +56,7 @@ Embedded **SQLite** — one file, `{FLUFFY_STORAGE_PATH}/fluffy.db`, opened once
 Pragmas at open: `journal_mode=WAL` (concurrent readers while the collector writes),
 `synchronous=FULL` (a hard kill cannot lose the last cycle), `busy_timeout=10000`,
 `foreign_keys=ON`, `cache_size=-4000` (4 MiB page-cache cap — keeps RSS flat; mmap stays off).
-Schema version lives in `PRAGMA user_version` (currently 1).
+Schema version lives in `PRAGMA user_version` (currently 2).
 
 **Tables** (see `schema.go` for the DDL):
 
@@ -66,6 +68,9 @@ Schema version lives in `PRAGMA user_version` (currently 1).
 - `jumpgates` — per-reset gate list with `status` (NoActivity/Active/Const/Complete) and `completed_at`.
 - `construction` — time series `(jumpgate, timestamp, fabmat, advcct)`, `WITHOUT ROWID`.
 - `factions` — per-reset rows; traits stored as a JSON array.
+- `supply_chain` — static export→imports map, one row per `(export, import)` pair plus `fetched_at`,
+  `WITHOUT ROWID`. Not reset-scoped and not pruned: stored once via `StoreSupplyChain`
+  (`INSERT OR REPLACE`, one tx), read via `GetSupplyChain`, existence check `SupplyChainExists`.
 
 **Writes:** every collection cycle is **one transaction** (`inTx`) — a partial cycle can never exist.
 Natural keys (minute-rounded timestamps, reset_date + symbol) use `INSERT OR REPLACE`, so retries are
@@ -178,6 +183,7 @@ The game server resets weekly (from the API's `serverResets.frequency`):
 | `FLUFFY_AGENT_TICK` | `5m` | Agent + status collection interval (Go duration syntax, e.g. `30s`) |
 | `FLUFFY_JUMPGATE_TICK` | `30m` | Jumpgate (under construction) progress interval |
 | `FLUFFY_CONSTRUCTION_TICK` | `4h` | Scan for newly-started jumpgate construction |
+| `FLUFFY_SUPPLY_TICK` | `24h` | Supply chain refresh check (no-op once collected) |
 | `FLUFFY_TEMPLATE_DIR` | `internal/frontend` | Directory containing `templates/` |
 | `FLUFFY_STATIC_DIR` | `internal/frontend` | Directory containing `static/` |
 | `FLUFFY_LOG_LEVEL` | info | Set `debug` or `dbg` to enable `logging.Debug()` output |

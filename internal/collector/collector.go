@@ -28,9 +28,11 @@ type Collector struct {
 	agentTicker          *time.Ticker
 	constTicker          *time.Ticker
 	jumpgateTicker       *time.Ticker
+	supplyTicker         *time.Ticker
 	agentInterval        time.Duration
 	jumpgateInterval     time.Duration
 	constructionInterval time.Duration
+	supplyInterval       time.Duration
 }
 
 // tickDuration reads a Go duration from an env var, falling back to the
@@ -57,6 +59,7 @@ func NewCollector(gate *gate.Gate, baseURL string) *Collector {
 	c.agentInterval = tickDuration("FLUFFY_AGENT_TICK", 5*time.Minute)
 	c.jumpgateInterval = tickDuration("FLUFFY_JUMPGATE_TICK", 30*time.Minute)
 	c.constructionInterval = tickDuration("FLUFFY_CONSTRUCTION_TICK", 4*time.Hour)
+	c.supplyInterval = tickDuration("FLUFFY_SUPPLY_TICK", 24*time.Hour)
 	return &c
 }
 
@@ -68,9 +71,16 @@ func (c *Collector) Run(ctx context.Context) {
 		logging.Error("Error running updateStatus", err)
 	}
 
+	// Fetch the static supply chain once at startup so a fresh DB populates
+	// within seconds of boot; a no-op once collected. Non-fatal on error.
+	if err := c.updateSupplyChain(ctx); err != nil {
+		logging.Error("Error running updateSupplyChain", err)
+	}
+
 	c.agentTicker = time.NewTicker(c.agentInterval)
 	c.jumpgateTicker = time.NewTicker(c.jumpgateInterval)
 	c.constTicker = time.NewTicker(c.constructionInterval)
+	c.supplyTicker = time.NewTicker(c.supplyInterval)
 	resetTimer := time.NewTimer(7 * 24 * time.Hour)
 
 	for {
@@ -101,11 +111,17 @@ func (c *Collector) Run(ctx context.Context) {
 			if err != nil {
 				logging.Error("Error running updateJumpgates")
 			}
+		case <-c.supplyTicker.C:
+			err = c.updateSupplyChain(ctx)
+			if err != nil {
+				logging.Error("Error running updateSupplyChain", err)
+			}
 		case <-resetTimer.C:
 			logging.Info("reset timer emit, stopping tickers doing one last check and then looping until reset is complete")
 			c.agentTicker.Stop()
 			c.jumpgateTicker.Stop()
 			c.constTicker.Stop()
+			c.supplyTicker.Stop()
 			metrics.CollectorResetDetections.Add(1)
 			err := c.updateStatus(ctx)
 			if err != nil {
@@ -120,6 +136,7 @@ func (c *Collector) Run(ctx context.Context) {
 			c.agentTicker = time.NewTicker(c.agentInterval)
 			c.jumpgateTicker = time.NewTicker(c.jumpgateInterval)
 			c.constTicker = time.NewTicker(c.constructionInterval)
+			c.supplyTicker = time.NewTicker(c.supplyInterval)
 			logging.Info("restarted tickers")
 		}
 	}

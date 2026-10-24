@@ -4,7 +4,7 @@ import "database/sql"
 
 // schemaVersion is bumped when the DDL changes; applySchema is idempotent
 // and only moves user_version forward.
-const schemaVersion = 1
+const schemaVersion = 2
 
 const schemaDDL = `
 CREATE TABLE IF NOT EXISTS agents (
@@ -83,6 +83,13 @@ CREATE TABLE IF NOT EXISTS factions (
 	is_recruiting INTEGER NOT NULL,
 	PRIMARY KEY (reset_date, symbol)
 ) WITHOUT ROWID;
+
+CREATE TABLE IF NOT EXISTS supply_chain (
+	export     TEXT NOT NULL,
+	import     TEXT NOT NULL,
+	fetched_at INTEGER NOT NULL,
+	PRIMARY KEY (export, import)
+) WITHOUT ROWID;
 `
 
 func applySchema(d *sql.DB) error {
@@ -94,7 +101,7 @@ func applySchema(d *sql.DB) error {
 		_ = tx.Rollback()
 		return err
 	}
-	if _, err := tx.Exec(`PRAGMA user_version = 1`); err != nil {
+	if _, err := tx.Exec(`PRAGMA user_version = 2`); err != nil {
 		_ = tx.Rollback()
 		return err
 	}

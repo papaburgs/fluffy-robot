@@ -12,6 +12,7 @@ var (
 	CollectorAgentUpdates       = expvar.NewInt("collector_agent_updates_total")
 	CollectorJumpgateUpdates    = expvar.NewInt("collector_jumpgate_updates_total")
 	CollectorConstructionChecks = expvar.NewInt("collector_construction_checks_total")
+	CollectorSupplyChainUpdates = expvar.NewInt("collector_supply_chain_updates_total")
 	CollectorResetDetections    = expvar.NewInt("collector_reset_detections_total")
 	CollectorLastTimestamp      = expvar.NewInt("collector_last_update_timestamp")
 
