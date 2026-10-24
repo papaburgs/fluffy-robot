@@ -965,3 +965,133 @@ tr:hover {
     white-space: nowrap;
     border-width: 0;
 }
+
+/* Stats Page */
+.stats-container {
+    padding: 10px 0;
+}
+
+.stats-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.stat-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #2a2a2a;
+    color: #888;
+    font-size: 0.85rem;
+}
+
+.stat-chip strong {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: currentColor;
+    box-shadow: 0 0 6px currentColor;
+}
+
+.status-badge-online {
+    color: #a0c0a0;
+    background-color: #2d3a2d;
+    border: 1px solid #3e4e3e;
+}
+
+.status-badge-offline {
+    color: #d98c8c;
+    background-color: #3a2d2d;
+    border: 1px solid #5e3e3e;
+}
+
+.status-badge-unknown {
+    color: #999;
+    background-color: #2a2a2a;
+    border: 1px solid #444;
+}
+
+.stats-tiles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.stat-tile {
+    background-color: var(--card-bg);
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-tile:hover {
+    border-color: var(--accent-color);
+    transform: translateY(-2px);
+    box-shadow: 0 0 10px rgba(187, 134, 252, 0.25);
+}
+
+.stat-tile-label {
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+}
+
+.stat-tile-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--accent-color);
+}
+
+.stats-table td:first-child {
+    color: #888;
+    font-weight: 500;
+}
+
+.stats-table td:last-child {
+    color: var(--text-color);
+    font-weight: 600;
+}
+
+@media (max-width: 480px) {
+    .stats-tiles {
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 10px;
+    }
+
+    .stat-tile {
+        padding: 10px 12px;
+    }
+
+    .stat-tile-value {
+        font-size: 1.3rem;
+    }
+}
