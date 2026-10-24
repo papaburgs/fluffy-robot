@@ -1,6 +1,9 @@
 package datastore
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func testChain() map[string][]string {
 	return map[string][]string{
@@ -70,5 +73,37 @@ func TestStoreSupplyChain_Idempotent(t *testing.T) {
 	}
 	if count != 3 {
 		t.Fatalf("row count after re-store = %d, want 3", count)
+	}
+}
+
+func TestGetSupplyChain_RoundTrip(t *testing.T) {
+	seedTestDB(t)
+	want := map[string][]string{
+		"A": {"B", "C"},
+		"X": {"Y"},
+	}
+	if err := StoreSupplyChain(want, 1700000000); err != nil {
+		t.Fatalf("StoreSupplyChain: %v", err)
+	}
+	got, err := GetSupplyChain()
+	if err != nil {
+		t.Fatalf("GetSupplyChain: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("GetSupplyChain = %v, want %v", got, want)
+	}
+}
+
+func TestGetSupplyChain_Empty(t *testing.T) {
+	seedTestDB(t)
+	got, err := GetSupplyChain()
+	if err != nil {
+		t.Fatalf("GetSupplyChain: %v", err)
+	}
+	if got == nil {
+		t.Fatal("GetSupplyChain on empty table returned nil map, want non-nil empty")
+	}
+	if len(got) != 0 {
+		t.Fatalf("GetSupplyChain on empty table = %v, want empty map", got)
 	}
 }

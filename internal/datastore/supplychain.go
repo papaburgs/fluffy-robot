@@ -36,6 +36,27 @@ func StoreSupplyChain(chain map[string][]string, now int64) error {
 	return err
 }
 
+// GetSupplyChain returns the full export→imports map for a future
+// frontend page. Imports within each export come out sorted via ORDER BY.
+// An empty table yields an empty non-nil map and nil error.
+func GetSupplyChain() (map[string][]string, error) {
+	metrics.DatastoreReads.Add(1)
+	rows, err := db.Query(`SELECT export, import FROM supply_chain ORDER BY export, import`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	res := make(map[string][]string)
+	for rows.Next() {
+		var exp, imp string
+		if err := rows.Scan(&exp, &imp); err != nil {
+			return nil, err
+		}
+		res[exp] = append(res[exp], imp)
+	}
+	return res, rows.Err()
+}
+
 // SupplyChainExists reports whether the chain has ever been collected.
 // False on error so the collector retries the fetch (safe direction).
 func SupplyChainExists() bool {
