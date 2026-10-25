@@ -696,3 +696,13 @@ func SupplyChainHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	metrics.RecordDuration("supply_chain", start)
 }
+
+// HelpHandler serves the static help page.
+func HelpHandler(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
+	w.Header().Set("Content-Type", "text/html")
+	if err := t.ExecuteTemplate(w, "help.html", nil); err != nil {
+		logging.Error("template error", err)
+	}
+	metrics.RecordDuration("help", start)
+}

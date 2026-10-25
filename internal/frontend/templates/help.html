@@ -1,0 +1,70 @@
+<div class="stats-container">
+    <h2>Fluffy Robot Spacetraders Credit Report</h2>
+
+    <div class="construction-summary">
+        <h3>Credit Reports</h3>
+        <p>
+            Fluffy Robot is a spacetraders.io api scraper and database.
+            The main goal is to be able to see your credits and growth over the course of a reset and compare with others.
+            Something that could be quickly checked when not at your dashboard like when you are waiting for the bus.
+            Extra features like agent faction counts and jumpgate construction status came later.
+        </p>
+        <p>
+            The tool does not make an agent id, as such it is limited to non-authenticated endpoints. So while it can tell how many 
+            ships you have, it cannot see where they are or what kind it is.
+        </p>
+    </div>
+    <div class="construction-summary">
+        <h3>Pick the account you want to view</h3>
+        <p>
+            There is no login — the dashboard reads SpaceTraders' public API and collects
+            every agent it sees. The chart pages (credits, ships, jumpgate construction)
+            only show the agents you have selected. 
+            These selections are stored in your browser local storage so it will carry on from week to week.
+            There is a 'Clear Selection' button in preferences to reset that.
+        </p>
+        <p>
+            To pick your accounts to watch, use the <strong>Agents or Preferences</strong> pages:
+            click an agent to select or deselect it.
+            Your selections are saved in your browser and apply to every chart page.
+            You can also mark one agent as your own in <strong>Preferences</strong> —
+            It currently does not do anything.
+            If a chart looks empty, try adding an agent from the leaderboard so you know there is someone that should have data.
+        </p>
+    </div>
+
+    <div class="construction-summary">
+        <h3>How data updates</h3>
+        <p>The collector polls the SpaceTraders API on fixed cycles:</p>
+        <ul>
+            <li><strong>Agents</strong> — every 5 minutes: credit and ship counts, leaderboards, and server stats. New agents appear on the next cycle.</li>
+            <li><strong>Jumpgate construction progress</strong> — every 30 minutes, for systems that have already started building a jumpgate.</li>
+            <li><strong>New construction scan</strong> — every 4 hours. The collector only checks systems that are the headquarters system of a collected agent and have not started construction yet; once it finds materials delivered there, that system moves to the 30-minute track. A jumpgate that just started building can therefore take up to 4 hours to show up.</li>
+            <li><strong>Supply chain</strong> — static game data, fetched once.</li>
+        </ul>
+        <p>
+            Construction scan is the most expensive call, so it not done on every agent. It also does not tie to a specific agent, rather the home system for that agent.
+            All the construction gates are checked every 4 hours, and if one is found that has some activity it is added to a list that gets updated every 30 mins.
+        </p>
+        <p>
+            The game resets weekly on Sunday around 13:00 UTC: leaderboards and jumpgate
+            construction start fresh, and roughly five weeks of history is kept.
+        </p>
+    </div>
+
+    <div class="construction-summary">
+        <h3>Caveats and Known Issues</h3>
+        <h4>Mobile friendly</h4>
+        <ul>
+            <li>The site is Mobile friendly, but not optimized for mobile.</li>
+            <li>Phone does work, but some of the busier charts are difficult to navigate.</li>
+            <li>Wide tables and charts scroll sideways inside their cards, not with the page.</li>
+            <li>The supply chain tree supports drag-to-pan and zoom — on a touch screen, dragging inside the chart moves the chart instead of scrolling the page. Scroll outside the chart, or tap a node to collapse a branch.</li>
+        </ul>
+        <h4>Resets</h4>
+        <ul>
+            <li>Currently only data in the current reset is shown. Future versions hope to have ability to go back in history</li>
+            <li>Data is held for 4 weeks, but the frontend doesn't know how to get it yet.</li>
+        </ul>
+    </div>
+</div>

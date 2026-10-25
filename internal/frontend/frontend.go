@@ -82,6 +82,7 @@ func StartServer() {
 	http.HandleFunc("/jumpgates", JumpgatesHandler)
 	http.HandleFunc("/factions", FactionsHandler)
 	http.HandleFunc("/supply-chain", SupplyChainHandler)
+	http.HandleFunc("/help", HelpHandler)
 
 	http.HandleFunc("/export", ExportHandler)
 
