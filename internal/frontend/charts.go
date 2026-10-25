@@ -130,6 +130,13 @@ func CreditChart(agents []string, history []ds.AgentStatus, dur time.Duration, t
 		charts.WithTitleOpts(opts.Title{
 			Title: title,
 		}),
+		// keep the legend below the title and on one scrollable row so
+		// many agents (or a narrow/mobile viewport) cannot wrap legend
+		// items over the title
+		charts.WithLegendOpts(opts.Legend{
+			Type: "scroll",
+			Top:  "35",
+		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min:      0,
 			Position: "right",
@@ -181,6 +188,10 @@ func ShipChart(agents []string, history []ds.AgentStatus, dur time.Duration, tit
 		}),
 		charts.WithTitleOpts(opts.Title{
 			Title: title,
+		}),
+		charts.WithLegendOpts(opts.Legend{
+			Type: "scroll",
+			Top:  "35",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min:      0,
@@ -234,6 +245,11 @@ func JumpgateConstructionChart(data map[string][]ds.ConstructionRecord, duration
 		charts.WithTitleOpts(opts.Title{
 			Title:    "Jumpgate Construction Progress",
 			Subtitle: "Materials vs Time",
+		}),
+		// Top clears the two-line title (title + subtitle)
+		charts.WithLegendOpts(opts.Legend{
+			Type: "scroll",
+			Top:  "60",
 		}),
 		charts.WithYAxisOpts(opts.YAxis{
 			Min:      0,
