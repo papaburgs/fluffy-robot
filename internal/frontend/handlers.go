@@ -655,8 +655,8 @@ func SupplyChainHandler(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 	q := r.URL.Query()
 	mode := q.Get("mode")
-	if mode != "needs" {
-		mode = "needs" // phase 2 adds "products"
+	if mode != "needs" && mode != "products" {
+		mode = "needs"
 	}
 	good := q.Get("good")
 
@@ -675,8 +675,13 @@ func SupplyChainHandler(w http.ResponseWriter, r *http.Request) {
 	}{Mode: mode, Good: good, Goods: chainGoods(chain, mode), Collected: len(chain) > 0}
 
 	if good != "" && len(chain) > 0 {
+		orient, title := "RL", "Requirements for "+good
 		root := buildNeedsTree(chain, good)
-		snippet := SupplyChainChart(root, "Requirements for "+good, "RL").RenderSnippet()
+		if mode == "products" {
+			root = buildProductsTree(chain, good)
+			orient, title = "LR", "Products from "+good
+		}
+		snippet := SupplyChainChart(root, title, orient).RenderSnippet()
 		data.Chart = ChartSnippet{
 			Element: template.HTML(snippet.Element),
 			Script:  template.HTML(snippet.Script),

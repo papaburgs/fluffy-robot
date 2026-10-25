@@ -7,6 +7,7 @@
                 hx-target="#content-area"
                 hx-include="[name='good']">
             <option value="needs"{{if eq .Mode "needs"}} selected{{end}}>What do I need to produce…</option>
+            <option value="products"{{if eq .Mode "products"}} selected{{end}}>What can I produce with…</option>
         </select>
     </label>
     <label class="select-label">Good:

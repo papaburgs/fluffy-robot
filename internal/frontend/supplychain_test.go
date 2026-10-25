@@ -127,3 +127,64 @@ func TestSupplyChainChart_SnippetPins(t *testing.T) {
 		}
 	}
 }
+
+func TestReverseChain(t *testing.T) {
+	want := map[string][]string{
+		"IRON":        {"FAB_MATS", "SHIP_PARTS"},
+		"IRON_ORE":    {"IRON"},
+		"QUARTZ_SAND": {"FAB_MATS"},
+		"EXPLOSIVES":  {"SHIP_PARTS"},
+		"AMMONIA_ICE": {"EXPLOSIVES"},
+	}
+	if got := reverseChain(testChain()); !reflect.DeepEqual(got, want) {
+		t.Fatalf("reverseChain = %v, want %v", got, want)
+	}
+}
+
+func TestBuildProductsTree_Iron(t *testing.T) {
+	root := buildProductsTree(testChain(), "IRON")
+	if root.Name != "IRON" {
+		t.Fatalf("root = %q, want IRON", root.Name)
+	}
+	if got, want := childNames(root), []string{"FAB_MATS", "SHIP_PARTS"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("children = %v, want %v", got, want)
+	}
+	if len(root.Children[0].Children) != 0 || len(root.Children[1].Children) != 0 {
+		t.Fatal("FAB_MATS and SHIP_PARTS should be leaves in the reversed graph")
+	}
+}
+
+func TestBuildProductsTree_ExplosivesLeaf(t *testing.T) {
+	chain := map[string][]string{"MISSILE": {"EXPLOSIVES"}, "EXPLOSIVES": {"FUEL"}, "FUEL": {"OIL"}}
+	root := buildProductsTree(chain, "OIL")
+	if got, want := childNames(root), []string{"FUEL"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("children = %v, want %v", got, want)
+	}
+	fuel := root.Children[0]
+	if got, want := childNames(fuel), []string{"EXPLOSIVES"}; !reflect.DeepEqual(got, want) {
+		t.Fatalf("FUEL children = %v, want %v", got, want)
+	}
+	if len(fuel.Children[0].Children) != 0 {
+		t.Fatal("EXPLOSIVES must not be expanded in products mode (MISSILE hidden)")
+	}
+
+	expRoot := buildProductsTree(chain, "EXPLOSIVES")
+	if expRoot.Name != "EXPLOSIVES" || len(expRoot.Children) != 0 {
+		t.Fatalf("EXPLOSIVES as root must stay a single node, got %+v", expRoot)
+	}
+}
+
+func TestChainGoods_Products(t *testing.T) {
+	want := []string{"AMMONIA_ICE", "EXPLOSIVES", "IRON", "IRON_ORE", "QUARTZ_SAND"}
+	if got := chainGoods(testChain(), "products"); !reflect.DeepEqual(got, want) {
+		t.Fatalf("chainGoods(products) = %v, want %v", got, want)
+	}
+}
+
+func TestSupplyChainChart_LRSnippet(t *testing.T) {
+	root := buildNeedsTree(testChain(), "IRON")
+	snippet := SupplyChainChart(root, "Products from IRON", "LR").RenderSnippet()
+	if !strings.Contains(snippet.Script, `"orient":"LR"`) {
+		t.Errorf("snippet missing %q", `"orient":"LR"`)
+	}
+}

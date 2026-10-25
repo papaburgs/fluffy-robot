@@ -378,13 +378,45 @@ func buildNeedsTree(chain map[string][]string, good string) *chainNode {
 	return buildChainTree(chain, good)
 }
 
-// chainGoods lists the goods selectable for a mode. Mode "needs" (and any
-// unknown mode) lists export symbols — things you can produce. The
-// "products" branch is added in phase 2.
+// reverseChain inverts the export→imports map into import→sorted exports.
+func reverseChain(chain map[string][]string) map[string][]string {
+	res := make(map[string][]string, len(chain))
+	for exp, imports := range chain {
+		for _, imp := range imports {
+			res[imp] = append(res[imp], exp)
+		}
+	}
+	for imp := range res {
+		sort.Strings(res[imp])
+	}
+	return res
+}
+
+// buildProductsTree returns the "what can I produce with good" tree:
+// children are the goods that use good as an input, recursively.
+func buildProductsTree(chain map[string][]string, good string) *chainNode {
+	return buildChainTree(reverseChain(chain), good)
+}
+
+// chainGoods lists the goods selectable for a mode: "needs" lists export
+// symbols (things you can produce), "products" lists import symbols
+// (things you can feed in). Unknown modes default to "needs".
 func chainGoods(chain map[string][]string, mode string) []string {
-	goods := make([]string, 0, len(chain))
-	for exp := range chain {
-		goods = append(goods, exp)
+	set := make(map[string]bool)
+	if mode == "products" {
+		for _, imports := range chain {
+			for _, imp := range imports {
+				set[imp] = true
+			}
+		}
+	} else {
+		for exp := range chain {
+			set[exp] = true
+		}
+	}
+	goods := make([]string, 0, len(set))
+	for g := range set {
+		goods = append(goods, g)
 	}
 	sort.Strings(goods)
 	return goods
