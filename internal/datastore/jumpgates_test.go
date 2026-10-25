@@ -91,7 +91,7 @@ func TestMarkComplete_Started(t *testing.T) {
 
 func TestConstructions_Window(t *testing.T) {
 	seedTestDB(t)
-	base := int64(9_000_000)
+	base := utcTs("2026-10-07", 13) // Wednesday of the current reset week
 	var recs []JGConstruction
 	for i := 0; i < 5; i++ {
 		recs = append(recs, JGConstruction{Timestamp: base + int64(i*300), Jumpgate: "X1-A-J1", Fabmat: i * 100, Advcct: i * 10})
@@ -116,6 +116,38 @@ func TestConstructions_Window(t *testing.T) {
 		if got[i].Timestamp < got[i-1].Timestamp {
 			t.Errorf("rows not time-ordered: %+v", got)
 		}
+	}
+}
+
+// A window that spans the weekly reset boundary must only return rows
+// from the selected (latest) reset — same rule as GetAgentHistory.
+func TestGetConstructions_ResetBoundary(t *testing.T) {
+	seedTestDB(t)                      // current reset = 2026-10-05 (Sunday 13:00 UTC)
+	prevWed := utcTs("2026-09-30", 13) // previous reset week
+	curWed := utcTs("2026-10-07", 13)  // current reset week
+	if err := AddConstructions([]JGConstruction{
+		{Timestamp: prevWed, Jumpgate: "X1-A-J1", Fabmat: 5, Advcct: 5},
+		{Timestamp: curWed, Jumpgate: "X1-A-J1", Fabmat: 10, Advcct: 10},
+	}, curWed); err != nil {
+		t.Fatalf("AddConstructions: %v", err)
+	}
+
+	// Window covering both weeks: only the current reset's row.
+	got, err := GetConstructions(currentReset, prevWed-3600, curWed+3600)
+	if err != nil {
+		t.Fatalf("GetConstructions: %v", err)
+	}
+	if len(got) != 1 || got[0].Timestamp != curWed {
+		t.Fatalf("constructions = %+v, want exactly one row at %d (current reset only)", got, curWed)
+	}
+
+	// Selecting the previous reset returns only that reset's row.
+	got, err = GetConstructions(Reset("2026-09-28"), prevWed-3600, curWed+3600)
+	if err != nil {
+		t.Fatalf("GetConstructions older: %v", err)
+	}
+	if len(got) != 1 || got[0].Timestamp != prevWed {
+		t.Fatalf("older-reset constructions = %+v, want exactly one row at %d", got, prevWed)
 	}
 }
 

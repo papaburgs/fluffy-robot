@@ -76,12 +76,13 @@ func TestStoreAgents_RoundTrip(t *testing.T) {
 
 func TestStoreAgents_SnapshotRefreshSeriesAppends(t *testing.T) {
 	seedTestDB(t)
+	wed := utcTs("2026-10-07", 13) // Wednesday of the current reset week
 	a := pubAgents(struct {
 		sym, hf, hq string
 		cr          int64
 		sc          int
 	}{"BORG-1", "COSMIC", "X1-YZ-123", 175000, 2})
-	if err := StoreAgents(a, 1_000_000); err != nil {
+	if err := StoreAgents(a, wed); err != nil {
 		t.Fatalf("StoreAgents first: %v", err)
 	}
 	a2 := pubAgents(struct {
@@ -89,7 +90,7 @@ func TestStoreAgents_SnapshotRefreshSeriesAppends(t *testing.T) {
 		cr          int64
 		sc          int
 	}{"BORG-1", "COSMIC", "X1-YZ-123", 190000, 3})
-	if err := StoreAgents(a2, 1_000_300); err != nil {
+	if err := StoreAgents(a2, wed+300); err != nil {
 		t.Fatalf("StoreAgents second: %v", err)
 	}
 
@@ -104,8 +105,9 @@ func TestStoreAgents_SnapshotRefreshSeriesAppends(t *testing.T) {
 		}
 	}
 
-	// series: both rows present
-	hist, err := GetAgentHistory(currentReset, 0, 0, nil)
+	// series: both rows present (explicit end: end 0 ⇒ real now, which
+	// predates these synthetic 2026 rows)
+	hist, err := GetAgentHistory(currentReset, 0, utcTs("2026-10-09", 13), nil)
 	if err != nil {
 		t.Fatalf("GetAgentHistory: %v", err)
 	}
@@ -122,7 +124,7 @@ func TestGetAgentHistory_WindowAndAgentFilter(t *testing.T) {
 		sc          int
 	}{"A1", "COSMIC", "X1-YZ-123", 175000, 2})
 	// ten 5-minute ticks for A1, plus a second agent B1
-	ts := int64(2_000_000)
+	ts := utcTs("2026-10-07", 13) // Wednesday of the current reset week
 	for i := 0; i < 10; i++ {
 		a1[0].Credits = 175000 + int64(i*1000)
 		if err := StoreAgents(a1, ts+int64(i*300)); err != nil {
@@ -200,6 +202,55 @@ func TestGetAgentHistory_OlderReset(t *testing.T) {
 	}
 	if len(older) != 1 || older[0].Credits != 100 {
 		t.Errorf("older reset list = %+v, want one row with credits 100", older)
+	}
+}
+
+// A window that spans the weekly reset boundary (like the 7-day chart)
+// must only return rows from the selected reset. For now that is always
+// the latest reset; the reset argument is what a future reset selector
+// will drive.
+func TestGetAgentHistory_ResetBoundary(t *testing.T) {
+	seedTestDB(t)                      // current reset = 2026-10-05 (Sunday 13:00 UTC)
+	prevWed := utcTs("2026-09-30", 13) // previous reset week
+	curWed := utcTs("2026-10-07", 13)  // current reset week
+	a := pubAgents(struct {
+		sym, hf, hq string
+		cr          int64
+		sc          int
+	}{"A1", "COSMIC", "X1-YZ-123", 100, 2})
+	if err := StoreAgents(a, prevWed); err != nil {
+		t.Fatalf("StoreAgents prev: %v", err)
+	}
+	a[0].Credits = 500
+	if err := StoreAgents(a, curWed); err != nil {
+		t.Fatalf("StoreAgents cur: %v", err)
+	}
+
+	// Window covering both weeks: only the current reset's row.
+	hist, err := GetAgentHistory(currentReset, prevWed-3600, curWed+3600, nil)
+	if err != nil {
+		t.Fatalf("GetAgentHistory: %v", err)
+	}
+	if len(hist) != 1 || hist[0].Timestamp != curWed {
+		t.Fatalf("history = %+v, want exactly one row at %d (current reset only)", hist, curWed)
+	}
+
+	// Window entirely inside the previous reset: no current-reset rows.
+	hist, err = GetAgentHistory(currentReset, prevWed-7200, prevWed-3600, nil)
+	if err != nil {
+		t.Fatalf("GetAgentHistory pre-reset window: %v", err)
+	}
+	if len(hist) != 0 {
+		t.Fatalf("pre-reset window returned %+v, want no rows", hist)
+	}
+
+	// Selecting the previous reset returns only that reset's row.
+	hist, err = GetAgentHistory(Reset("2026-09-28"), prevWed-3600, curWed+3600, nil)
+	if err != nil {
+		t.Fatalf("GetAgentHistory older: %v", err)
+	}
+	if len(hist) != 1 || hist[0].Timestamp != prevWed {
+		t.Fatalf("older-reset history = %+v, want exactly one row at %d", hist, prevWed)
 	}
 }
 

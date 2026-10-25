@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
@@ -116,18 +115,20 @@ func GetAgentList(reset Reset) ([]Agent, error) {
 	return res, rows.Err()
 }
 
-// GetAgentHistory returns series rows within [start,end] (end 0 ⇒ now) for
-// the given agent symbols. An empty slice returns zero rows — the caller
+// GetAgentHistory returns series rows within [start,end] (end 0 ⇒ now),
+// bounded to the given reset's week (empty reset = the current one) so a
+// chart never spans a reset. An empty slice returns zero rows — the caller
 // must pass the requested set explicitly, or the query would load the
 // whole reset into RAM (the gob-path bug this backend exists to fix).
 // Passing nil means "no filter" for internal callers that genuinely want
 // the whole window.
 func GetAgentHistory(reset Reset, start, end int64, agents []string) ([]AgentStatus, error) {
-	if end == 0 {
-		end = time.Now().Unix()
-	}
 	res := []AgentStatus{}
 	if agents != nil && len(agents) == 0 {
+		return res, nil
+	}
+	start, end, ok := resetWindow(reset, start, end)
+	if !ok {
 		return res, nil
 	}
 

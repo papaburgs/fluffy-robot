@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/papaburgs/fluffy-robot/internal/logging"
 )
@@ -110,10 +109,13 @@ func AddConstructions(cList []JGConstruction, ts int64) error {
 }
 
 // GetConstructions returns construction rows within [start,end] (end 0 =>
-// now), time-ordered. The window is applied in SQL — no load-then-filter.
+// now), bounded to the given reset's week (empty reset = the current one)
+// so a chart never spans a reset, time-ordered. The window is applied in
+// SQL — no load-then-filter.
 func GetConstructions(reset Reset, start, end int64) ([]JGConstruction, error) {
-	if end == 0 {
-		end = time.Now().Unix()
+	start, end, ok := resetWindow(reset, start, end)
+	if !ok {
+		return []JGConstruction{}, nil
 	}
 	rows, err := db.Query(`SELECT timestamp, jumpgate, fabmat, advcct
 		FROM construction WHERE timestamp >= ? AND timestamp <= ?

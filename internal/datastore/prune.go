@@ -101,14 +101,50 @@ func Prune(weeks int, resetDate Reset) error {
 // weekStart returns the unix start (Sunday 13:00 UTC) of the current
 // reset week — the lower bound for "latest" aggregates.
 func weekStart() (int64, error) {
-	if currentReset == "" {
+	return resetStart(currentReset)
+}
+
+// resetStart returns the unix start (Sunday 13:00 UTC) of the given
+// reset's week; an empty reset means the current one. Errors when no
+// reset is known yet (fresh boot, pre-first-status).
+func resetStart(reset Reset) (int64, error) {
+	if reset == "" {
+		reset = currentReset
+	}
+	if reset == "" {
 		return 0, fmt.Errorf("no current reset yet")
 	}
-	day, err := parseResetDay(currentReset)
+	day, err := parseResetDay(reset)
 	if err != nil {
 		return 0, err
 	}
 	return day.Unix(), nil
+}
+
+// resetWindow bounds [start,end] (end 0 ⇒ now) to the given reset's week
+// [resetStart, next reset start) — charts must not span a reset, so the
+// time-series getters intersect the caller's window with it. ok is false
+// when the reset is unknown or the window misses the week entirely;
+// callers return no rows then.
+func resetWindow(reset Reset, start, end int64) (int64, int64, bool) {
+	rs, err := resetStart(reset)
+	if err != nil {
+		return 0, 0, false
+	}
+	if end == 0 {
+		end = time.Now().Unix()
+	}
+	// Reset weeks run Sunday 13:00 UTC to Sunday 13:00 UTC (the same
+	// cadence Prune's cutoff arithmetic assumes). The -1 keeps the next
+	// reset's first second out of the getters' inclusive-end queries.
+	re := rs + 7*24*3600 - 1
+	if start < rs {
+		start = rs
+	}
+	if end > re {
+		end = re
+	}
+	return start, end, start <= end
 }
 
 func parseResetDay(r Reset) (time.Time, error) {
