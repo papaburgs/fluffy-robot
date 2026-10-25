@@ -434,7 +434,17 @@ func buildTreeData(n *chainNode) opts.TreeData {
 
 // SupplyChainChart builds the ECharts tree for a supply chain node:
 // orient "RL" for needs mode (root rightmost), "LR" for products mode.
+// Labels sit above the node marker (position "top"), with no background
+// box and a light 12px font for the dark theme.
 func SupplyChainChart(root *chainNode, title, orient string) *charts.Tree {
+	label := &opts.Label{
+		Show:            opts.Bool(true),
+		Position:        "top",
+		Color:           "#e8e8e8",
+		FontSize:        12,
+		FontWeight:      "normal",
+		BackgroundColor: "transparent",
+	}
 	tree := charts.NewTree()
 	tree.SetGlobalOptions(
 		charts.WithInitializationOpts(opts.Initialization{
@@ -456,6 +466,8 @@ func SupplyChainChart(root *chainNode, title, orient string) *charts.Tree {
 			Orient:           orient,
 			Roam:             opts.Bool(true), // pan/zoom for deep chains
 			InitialTreeDepth: -1,              // fully expanded
+			Label:            label,
+			Leaves:           &opts.TreeLeaves{Label: label},
 		}),
 	)
 	return tree

@@ -121,7 +121,8 @@ func TestBuildTreeData(t *testing.T) {
 func TestSupplyChainChart_SnippetPins(t *testing.T) {
 	root := buildNeedsTree(testChain(), "FAB_MATS")
 	snippet := SupplyChainChart(root, "Requirements for FAB_MATS", "RL").RenderSnippet()
-	for _, want := range []string{`"orient":"RL"`, `"roam":true`, `"initialTreeDepth":-1`, "IRON_ORE"} {
+	for _, want := range []string{`"orient":"RL"`, `"roam":true`, `"initialTreeDepth":-1`, "IRON_ORE",
+		`"position":"top"`, `"backgroundColor":"transparent"`, `"fontSize":12`, `"color":"#e8e8e8"`} {
 		if !strings.Contains(snippet.Script, want) {
 			t.Errorf("snippet missing %q", want)
 		}
