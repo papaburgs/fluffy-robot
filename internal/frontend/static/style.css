@@ -536,38 +536,37 @@ tr:hover {
 }
 
 .agents-grid {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
     margin-top: 10px;
+    overflow-x: auto;
+    container-type: inline-size;
 }
 
-.agent-card {
-    background-color: var(--card-bg);
-    border-radius: 8px;
-    padding: 8px 16px;
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    gap: 12px;
-    transition: background-color 0.2s;
+.agents-table {
+    margin-top: 0;
 }
 
-.agent-card.active {
-    border-left-color: inherit;
+.agents-table th,
+.agents-table td {
+    padding: 10px 12px;
+    font-size: 0.8rem;
+    vertical-align: middle;
 }
 
-.agent-card.inactive {
+.agents-table th {
+    font-size: 0.72rem;
+}
+
+.agents-table th.num,
+.agents-table td.num {
+    text-align: right;
+}
+
+.agents-table td.agent-cell {
+    border-left: 3px solid var(--faction-color);
+}
+
+.agents-table tr.agent-row.inactive {
     opacity: 0.7;
-}
-
-.agent-card-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    flex: 1;
-    flex-wrap: nowrap;
-    min-width: 0;
 }
 
 .agent-name-btn {
@@ -702,15 +701,6 @@ tr:hover {
     white-space: nowrap;
 }
 
-.agent-ships small, .agent-credits small {
-    color: #777;
-    font-size: 0.65rem;
-}
-
-.agent-card-detail {
-    white-space: nowrap;
-}
-
 .construction-status {
     font-family: 'Courier New', monospace;
     font-size: 0.75rem;
@@ -721,19 +711,112 @@ tr:hover {
     color: #b0bec5;
 }
 
-/* Mobile: stack into compact rows */
+@container (max-width: 730px) {
+    .agents-table thead {
+        position: absolute;
+        display: block;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+    }
+
+    .agents-table,
+    .agents-table tbody,
+    .agents-table tr,
+    .agents-table td {
+        display: block;
+    }
+
+    .agents-table tr.agent-row {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-areas:
+            "agent faction"
+            "system ships"
+            "credits construction";
+        gap: 4px 10px;
+        margin-bottom: 6px;
+        padding: 8px 10px;
+        background-color: var(--card-bg);
+        border-left: 3px solid var(--faction-color);
+        border-radius: 8px;
+    }
+
+    .agents-table td {
+        padding: 0;
+        border-bottom: 0;
+        min-width: 0;
+        line-height: 1.25;
+    }
+
+    .agents-table td::before {
+        content: attr(data-label);
+        display: block;
+        margin-bottom: 2px;
+        color: #777;
+        font-size: 0.55rem;
+        line-height: 1.2;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+    }
+
+    .agents-table td.agent-cell {
+        grid-area: agent;
+        border-left: 0;
+    }
+
+    .agents-table td.faction-cell {
+        grid-area: faction;
+        justify-self: end;
+    }
+
+    .agents-table td.system-cell {
+        grid-area: system;
+    }
+
+    .agents-table td.agent-ships {
+        grid-area: ships;
+    }
+
+    .agents-table td.agent-credits {
+        grid-area: credits;
+    }
+
+    .agents-table td.construction-cell {
+        grid-area: construction;
+    }
+
+    .agents-table td.agent-cell::before,
+    .agents-table td.faction-cell::before {
+        display: none;
+    }
+
+    .agents-table td.num {
+        text-align: left;
+    }
+
+    .agents-table .construction-status {
+        white-space: normal;
+        font-size: 0.7rem;
+    }
+}
+
+@container (min-width: 480px) and (max-width: 730px) {
+    .agents-table tr.agent-row {
+        grid-template-columns: auto auto repeat(3, minmax(0, 1fr));
+        grid-template-areas:
+            "agent faction system ships credits"
+            "construction construction construction construction construction";
+    }
+}
+
+/* Mobile controls */
 @media (max-width: 768px) {
-    .agent-card {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 4px;
-        padding: 10px 12px;
-    }
-
-    .agent-card-row {
-        flex-wrap: wrap;
-    }
-
     #sidebar-toggle,
     #close-sidebar {
         display: none;

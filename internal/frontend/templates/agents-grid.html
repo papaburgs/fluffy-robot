@@ -1,33 +1,47 @@
-{{range .Agents}}
-<div class="agent-card {{if .IsActive}}active{{else}}inactive{{end}} {{if .IsChecked}}agent-selected{{end}}"
-     style="border-left: 3px solid {{.FactionColor}}">
-    <div class="agent-card-row">
-        <button id="btn-{{.Symbol}}"
-                type="button"
-                class="agent-name-btn {{if .IsActive}}active{{else}}inactive{{end}} {{if .IsChecked}}agent-selected{{end}}"
-                onclick="toggleAgentSelection('{{.Symbol}}')"
-                title="{{if .IsActive}}Active Agent{{else}}Inactive (175k credits){{end}}">
-            {{.Symbol}}
-            <span class="status-indicator"></span>
-        </button>
-
-        <button class="faction-pill" style="background-color: {{.FactionColor}}"
-                onclick="setFactionFilter('{{.Faction}}')"
-                title="{{.FactionName}}">
-            {{.Faction}}
-        </button>
-
-        <button class="system-btn"
-                onclick="setSystemFilter('{{.System}}')">
-            {{.System}}
-            {{if .MultiSystem}}<span class="system-multi"></span>{{end}}
-        </button>
-
-        <span class="agent-ships">{{.Ships}} <small>ships</small></span>
-        <span class="agent-credits">{{.Credits}} <small>cr</small></span>
-    </div>
-    <div class="agent-card-detail">
-        <span class="construction-status {{if .ShowConstruct}}has-construct{{end}}">{{.Construction}}</span>
-    </div>
-</div>
-{{end}}
+<table class="data-table agents-table" role="table">
+    <thead role="rowgroup">
+        <tr role="row">
+            <th scope="col" role="columnheader">Agent</th>
+            <th scope="col" role="columnheader">Faction</th>
+            <th scope="col" role="columnheader">System</th>
+            <th scope="col" role="columnheader" class="num">Ships</th>
+            <th scope="col" role="columnheader" class="num">Credits</th>
+            <th scope="col" role="columnheader">Construction</th>
+        </tr>
+    </thead>
+    <tbody role="rowgroup">
+        {{range .Agents}}
+        <tr class="agent-row {{if not .IsActive}}inactive{{end}}" style="--faction-color: {{.FactionColor}}" role="row">
+            <td class="agent-cell" data-label="Agent" role="cell">
+                <button id="btn-{{.Symbol}}"
+                        type="button"
+                        class="agent-name-btn {{if .IsActive}}active{{else}}inactive{{end}} {{if .IsChecked}}agent-selected{{end}}"
+                        onclick="toggleAgentSelection('{{.Symbol}}')"
+                        title="{{if .IsActive}}Active Agent{{else}}Inactive (175k credits){{end}}">
+                    {{.Symbol}}
+                    <span class="status-indicator"></span>
+                </button>
+            </td>
+            <td class="faction-cell" data-label="Faction" role="cell">
+                <button class="faction-pill" style="background-color: {{.FactionColor}}"
+                        onclick="setFactionFilter('{{.Faction}}')"
+                        title="{{.FactionName}}">
+                    {{.Faction}}
+                </button>
+            </td>
+            <td class="system-cell" data-label="System" role="cell">
+                <button class="system-btn"
+                        onclick="setSystemFilter('{{.System}}')">
+                    {{.System}}
+                    {{if .MultiSystem}}<span class="system-multi"></span>{{end}}
+                </button>
+            </td>
+            <td class="num agent-ships" data-label="Ships" role="cell">{{.Ships}}</td>
+            <td class="num agent-credits" data-label="Credits" role="cell">{{.Credits}}</td>
+            <td class="construction-cell" data-label="Construction" role="cell">
+                <span class="construction-status {{if .ShowConstruct}}has-construct{{end}}">{{.Construction}}</span>
+            </td>
+        </tr>
+        {{end}}
+    </tbody>
+</table>
